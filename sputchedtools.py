@@ -103,7 +103,7 @@ class aio:
 				await session.close()
 	
 	@staticmethod
-	async def aio_post(url, session = None, toreturn = 'json', **kwargs):
+	async def post(url, session = None, toreturn = 'json', **kwargs):
 
 		created_session = False
 		if session is None:
