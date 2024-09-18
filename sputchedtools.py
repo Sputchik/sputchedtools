@@ -183,3 +183,49 @@ def enhance_loop():
 	
 	except ImportError:
 		return False
+
+def safe_round(value: float, decimals: int = 2) -> str:
+	
+	if value == 0: return value
+	elif not isinstance(value, float) or not isinstance(decimals, int) or decimals > 20: return value
+	
+	value = format(value, '.20f')
+	decim = value.split('.')[1]
+	
+	if value != '0':
+		decim = decim[0:decimals]
+		i = 0
+	
+	else:
+		for i in range(20):
+			if decim[i] != '0': break
+		decim = decim[i:i + decimals + 1]
+	
+	while decim.endswith('0'):
+		decim = decim[:-1]
+	
+	if len(decim) > decimals:
+		rounded = str(round(float(decim[:decimals] + '.' + decim[-1])))
+		
+		while rounded.endswith('0'):
+			rounded = rounded[:-1]
+		
+		decim = '0' * i + rounded
+	
+	else: decim = '0' * i + str(decim)
+	
+	return value.split('.')[0] + '.' + decim
+
+def convert_to_float(num):
+	multipliers = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
+	
+	mp = num[-1].lower()
+	digit = num[:-1]
+	
+	try:
+		digit = float(digit)
+		mp = multipliers[mp]
+		return digit * mp
+	
+	except (ValueError, IndexError):
+		return num
