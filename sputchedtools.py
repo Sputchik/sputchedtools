@@ -9,15 +9,15 @@ class Timer:
 	
 	"""
 
-	def __init__(self):
+	def __init__(self, txt = '', decimals = 2):
 		import time
 		self.time = time
-	
-	def __enter__(self, txt = '', decimals = 2):
-		self.was = self.time.time()
 		self.txt = txt
 		self.decimals = decimals
 	
+	def __enter__(self):
+		self.was = self.time.time()
+		
 	def __exit__(self, f, u, c):
 		self.diff = format((self.time.time() - self.was), f'.{self.decimals}f')
 		print(f'\nTaken time: {self.diff}s {self.txt}')
