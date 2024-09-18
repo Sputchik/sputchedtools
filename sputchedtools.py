@@ -146,7 +146,7 @@ class aio:
 				await session.close()
 	
 	@staticmethod
-	async def open(content, file: str, action: str = 'read', mode: str = 'r', **kwargs):
+	async def open(file: str, action: str = 'read', mode: str = 'r', content = None **kwargs):
 		async with aio.aiofiles.open(file, mode, **kwargs) as f:
 
 			if action == 'read': return await f.read()
