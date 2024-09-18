@@ -227,5 +227,5 @@ def convert_to_float(num):
 		mp = multipliers[mp]
 		return digit * mp
 	
-	except (ValueError, IndexError):
+	except (ValueError, KeyError):
 		return num
