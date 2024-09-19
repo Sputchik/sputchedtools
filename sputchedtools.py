@@ -25,7 +25,7 @@ class Timer:
 
 class aio:
 	import asyncio, aiohttp, aiofiles
-	i = 0
+	
 	@staticmethod
 	async def request(
 		url: str,
@@ -248,7 +248,7 @@ class num:
 
 		if value == 0: return value
 		elif not isinstance(value, float): return value
-		elif not (decimals < 1, isinstance(decimals, int)) or not (precission < 1, isinstance(precission, int)): return value
+		elif not (decimals > 0 and isinstance(decimals, int)) or not (precission > 0 and isinstance(precission, int)): return value
 		
 		str_val = format(value, f'.{precission}f')
 
