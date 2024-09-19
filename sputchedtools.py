@@ -25,7 +25,7 @@ class Timer:
 
 class aio:
 	import asyncio, aiohttp, aiofiles
-
+	i = 0
 	@staticmethod
 	async def request(
 		url: str,
@@ -184,48 +184,93 @@ def enhance_loop():
 	except ImportError:
 		return False
 
-def safe_round(value: float, decimals: int = 2) -> str:
+class num:
 	
-	if value == 0: return value
-	elif not isinstance(value, float) or not isinstance(decimals, int) or decimals > 20: return value
-	
-	value = format(value, '.20f')
-	decim = value.split('.')[1]
-	
-	if value != '0':
-		decim = decim[0:decimals]
-		i = 0
-	
-	else:
-		for i in range(20):
-			if decim[i] != '0': break
-		decim = decim[i:i + decimals + 1]
-	
-	while decim.endswith('0'):
-		decim = decim[:-1]
-	
-	if len(decim) > decimals:
-		rounded = str(round(float(decim[:decimals] + '.' + decim[-1])))
+	@staticmethod
+	def shorten(num: int | float, decimals = 2):
 		
-		while rounded.endswith('0'):
-			rounded = rounded[:-1]
+		suffixes = ['k', 'm', 'b', 't']
 		
-		decim = '0' * i + rounded
+		if not isinstance(num, (int, float)):
+			return None
+		
+		magnitude = 1000.0
+		
+		sign = '-' if num < 0 else ''
+		num = abs(num)
+		
+		if num < magnitude:
+			return f"{sign}{num}"
+			
+		for i, suffix in enumerate(suffixes, start=1):
+			unit = magnitude ** i
+			if num < unit * magnitude:
+				num = format(num / unit, f'.{decimals}f')
+				return f"{sign}{num}{suffix}"
+		
+		num = format(num / (magnitude ** len(suffixes)), f'.{decimals}f')
+		return f"{sign}{num}t"
+		
+	@staticmethod
+	def unshorten(num: str) -> float | str:
+		
+		multipliers = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
+		
+		mp = num[-1].lower()
+		digit = num[:-1]
+		
+		try:
+			digit = float(digit)
+			mp = multipliers[mp]
+			return digit * mp
+		
+		except (ValueError, IndexError):
+			return num
 	
-	else: decim = '0' * i + str(decim)
-	
-	return value.split('.')[0] + '.' + decim
+	@staticmethod
+	def decim_round(value: float, decimals: int = 2, precission: int = 20) -> str:
+		"""
+		
+		Accepts:
+			value: float - usually with mid-big decimals length
+			decimals: int - determines amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
+			precission: int - determines precission level (format(value, f'.->{precission}<-f'
+		
+		Returns:
+			accepted value:
+				if value == 0,
+				not isinstance(value & (decimals, precission), float & int)
+				decimals & value < 1
 
-def convert_to_float(num):
-	multipliers = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
-	
-	mp = num[-1].lower()
-	digit = num[:-1]
-	
-	try:
-		digit = float(digit)
-		mp = multipliers[mp]
-		return digit * mp
-	
-	except (ValueError, KeyError):
-		return num
+			str-like float 
+		
+		"""
+
+		if value == 0: return value
+		elif not isinstance(value, float): return value
+		elif not (decimals < 1, isinstance(decimals, int)) or not (precission < 1, isinstance(precission, int)): return value
+		
+		str_val = format(value, f'.{precission}f')
+
+		integer = str_val.split('.')[0]
+		decim = str_val.split('.')[1]
+		
+		if integer != '0':
+			i = 0
+		
+		else:
+			for i in range(len(decim)):
+				if decim[i] != '0': break
+			
+		decim = decim[i:i + decimals + 2].rstrip('0')
+
+		if decim == '':
+			return integer
+		
+		if len(decim) > decimals:
+			rounded = str(round(float(decim[:-2] + '.' + decim[-2:]))).rstrip('0')
+			decim = '0' * i + rounded
+		
+		else: decim = '0' * i + str(decim)
+		
+		return integer + '.' + decim
