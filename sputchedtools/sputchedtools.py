@@ -25,7 +25,7 @@ class Timer:
 
 class aio:
 	import asyncio, aiohttp, aiofiles
-	
+
 	@staticmethod
 	async def request(
 		url: str,
@@ -171,7 +171,7 @@ def enhance_loop():
 
 	try:
 
-		if platform == 'win32':
+		if 'win' in platform:
 			import winloop # type: ignore
 			winloop.install()
 
