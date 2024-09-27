@@ -65,8 +65,9 @@ class aio:
 		try:
 			async with session.get(url, **kwargs) as response:
 
+				status = response.status
+				
 				if 200 <= response.status < 300 and str(response.url)[-5:] !=  '/404/':
-					status = response.status
 
 					if toreturn == 'text':
 						data = await response.text()
