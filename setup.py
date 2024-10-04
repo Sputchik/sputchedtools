@@ -2,13 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
 	name = 'sputchedtools',
-	version = '0.10.1',
+	version = '0.11.0',
 	packages = find_packages(),
 	py_modules = ['sputchedtools'],
 	install_requires = [
-		'aiohttp>=3.10.6',
+		'aiohttp>=3.10.8',
 		'aiofiles>=24.1.0',
-		# uvloop / winloop
+		# uvloop/winloop
 	],
 	author = 'Sputchik',
 	author_email = 'sputchik@gmail.com',

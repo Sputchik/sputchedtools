@@ -1,4 +1,5 @@
 class Timer:
+
 	"""
 
 	Code execution Timer, use 'with' keyword
@@ -9,17 +10,17 @@ class Timer:
 
 	"""
 
+	import time
+
 	def __init__(self, txt = '', decimals = 2):
-		import time
-		self.time = time
 		self.txt = txt
 		self.decimals = decimals
 
 	def __enter__(self):
-		self.was = self.time.time()
+		self.was = Timer.time.time()
 
 	def __exit__(self, f, u, c):
-		self.diff = format((self.time.time() - self.was), f'.{self.decimals}f')
+		self.diff = format((Timer.time.time() - self.was), f'.{self.decimals}f')
 		print(f'\nTaken time: {self.diff}s {self.txt}')
 
 
@@ -66,7 +67,7 @@ class aio:
 			async with session.get(url, **kwargs) as response:
 
 				status = response.status
-				
+
 				if 200 <= response.status < 300 and str(response.url)[-5:] !=  '/404/':
 
 					if toreturn == 'text':
@@ -186,43 +187,42 @@ def enhance_loop():
 		return False
 
 class num:
+	suffixes = ['k', 'm', 'b', 't']
+	multipliers = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 
 	@staticmethod
-	def shorten(num: int | float, decimals = 2):
+	def shorten(value: int | float, decimals = 2):
 
-		suffixes = ['k', 'm', 'b', 't']
-
-		if not isinstance(num, (int, float)):
+		if not isinstance(value, (int, float)):
 			return None
 
 		magnitude = 1000.0
 
-		sign = '-' if num < 0 else ''
-		num = abs(num)
+		sign = '-' if value < 0 else ''
+		value = abs(value)
 
-		if num < magnitude:
-			return f"{sign}{num}"
+		if value < magnitude:
+			return f"{sign}{value}"
 
-		for i, suffix in enumerate(suffixes, start=1):
+		for i, suffix in enumerate(num.suffixes, start=1):
 			unit = magnitude ** i
-			if num < unit * magnitude:
-				num = format(num / unit, f'.{decimals}f')
-				return f"{sign}{num}{suffix}"
 
-		num = format(num / (magnitude ** len(suffixes)), f'.{decimals}f')
-		return f"{sign}{num}t"
+			if value < unit * magnitude:
+				value = format(value / unit, f'.{decimals}f')
+				return f"{sign}{value}{suffix}"
+
+		value = format(value / (magnitude ** len(num.suffixes)), f'.{decimals}f')
+		return f'{sign}{value}t'
 
 	@staticmethod
-	def unshorten(num: str) -> float | str:
+	def unshorten(value: str) -> float | str:
 
-		multipliers = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
-
-		mp = num[-1].lower()
-		digit = num[:-1]
+		mp = value[-1].lower()
+		digit = value[:-1]
 
 		try:
 			digit = float(digit)
-			mp = multipliers[mp]
+			mp = num.multipliers[mp]
 			return digit * mp
 
 		except (ValueError, IndexError):
