@@ -2,11 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
 	name = 'sputchedtools',
-	version = '0.11.0',
+	version = '0.12.1',
 	packages = find_packages(),
 	py_modules = ['sputchedtools'],
 	install_requires = [
-		'aiohttp>=3.10.8',
+		'aiohttp>=3.10.9',
 		'aiofiles>=24.1.0',
 		# uvloop/winloop
 	],

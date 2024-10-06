@@ -1,4 +1,4 @@
-from sputchedtools import Timer, aio, enhance_loop, num
+from sputchedtools import *
 
 with Timer('Test completed?', 4):
 	import asyncio
@@ -6,4 +6,7 @@ with Timer('Test completed?', 4):
 
 	print(asyncio.run(aio.request('https://example.com')))
 
-	print(num.shorten(34523453.5242240013, 3), num.unshorten('52352.32k'), num.decim_round(2.124002148, 6))
+	with Timer('calcs', 4):
+		print(num.shorten(4309.389, 2), num.unshorten('56b', True), num.decim_round(2.124002567, 6))
+
+	print(num.beautify(4349.567, 3))

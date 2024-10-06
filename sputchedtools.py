@@ -1,3 +1,13 @@
+import asyncio, aiohttp, aiofiles, time
+from sys import platform
+
+try:
+	from web3 import Web3
+	web3_toggle = True
+
+except:
+	web3_toggle = False
+
 class Timer:
 
 	"""
@@ -10,22 +20,27 @@ class Timer:
 
 	"""
 
-	import time
-
 	def __init__(self, txt = '', decimals = 2):
 		self.txt = txt
 		self.decimals = decimals
 
 	def __enter__(self):
-		self.was = Timer.time.time()
+		self.was = time.time()
 
 	def __exit__(self, f, u, c):
-		self.diff = format((Timer.time.time() - self.was), f'.{self.decimals}f')
+		self.diff = format((time.time() - self.was), f'.{self.decimals}f')
 		print(f'\nTaken time: {self.diff}s {self.txt}')
 
 
 class aio:
-	import asyncio, aiohttp, aiofiles
+	"""
+	Methods:
+		aio.request() - aiohttp.ClientSession.get() request
+		aio.post() - aiohttp.ClientSession.post() request
+		aio.open() - aiofiles.open() method
+		aio.sem_task() - uses received semaphore to return function execution result
+
+	"""
 
 	@staticmethod
 	async def request(
@@ -57,10 +72,9 @@ class aio:
 
 		"""
 
-
 		created_session = False
 		if session is None:
-			session = aio.aiohttp.ClientSession()
+			session = aiohttp.ClientSession()
 			created_session = True
 
 		try:
@@ -90,10 +104,10 @@ class aio:
 
 				else: return None, status
 
-		except aio.asyncio.TimeoutError:
+		except asyncio.TimeoutError:
 			return 0, None
 
-		except aio.asyncio.CancelledError:
+		except asyncio.CancelledError:
 			return None, None
 
 		except Exception as e:
@@ -105,11 +119,30 @@ class aio:
 				await session.close()
 
 	@staticmethod
-	async def post(url, session = None, toreturn = 'json', **kwargs):
+	async def post(url, toreturn = 'json', session = None, **kwargs) -> tuple:
+
+		"""
+		Accepts:
+			Args:
+				url
+			Kwargs:
+				toreturn: read, text, json
+				session: aiohttp.ClientSession
+				any other session.get() argument
+
+		Returns:
+			Valid response: (data, response.status)
+			status not in range(200, 400): (None, status)
+
+			Request Timeout: (0, None)
+			Cancelled Error: (None, None)
+			Exception: (-3, Exception as e)
+
+		"""
 
 		created_session = False
 		if session is None:
-			session = aio.aiohttp.ClientSession()
+			session = aiohttp.ClientSession()
 			created_session = True
 
 		try:
@@ -133,10 +166,10 @@ class aio:
 				else:
 					return None, status
 
-		except aio.asyncio.TimeoutError:
+		except asyncio.TimeoutError:
 			return 0, None
 
-		except aio.asyncio.CancelledError:
+		except asyncio.CancelledError:
 			return None, None
 
 		except Exception as e:
@@ -149,7 +182,23 @@ class aio:
 
 	@staticmethod
 	async def open(file: str, action: str = 'read', mode: str = 'r', content = None, **kwargs):
-		async with aio.aiofiles.open(file, mode, **kwargs) as f:
+		"""
+		Accepts:
+			Args:
+				file: str:. file path
+				action: str = 'read' | 'write': read/write file content
+				mode: str = 'r': aiofiles.open() mode
+
+			Kwargs:
+				content = None: content that will be used for file write action
+				**kwargs: other arguments added to aiofiles.open() method
+
+		Returns:
+			mode = 'read': file content
+			mode = 'write': content write to file status
+
+		"""
+		async with aiofiles.open(file, mode, **kwargs) as f:
 
 			if action == 'read': return await f.read()
 
@@ -168,8 +217,6 @@ class aio:
 			return await func(*args, **kwargs)
 
 def enhance_loop():
-	import asyncio
-	from sys import platform
 
 	try:
 
@@ -187,35 +234,73 @@ def enhance_loop():
 		return False
 
 class num:
-	suffixes = ['k', 'm', 'b', 't']
-	multipliers = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
+	"""
+	Methods:
+		num.shorten() - Shortens float | int value, using expandable / editable num.suffixes dictionary
+			Example: num.shorten(10_000_000, 0) -> '10m'
+
+		num.unshorten() - Unshortens str, using expandable / editable num.multipliers dictionary
+			Example: num.unshorten('1.63k', round = False) -> 1630.0
+
+		num.decim_round() - Safely rounds decimals in float
+			Example: num.decim_round(2.000127493, 2) -> '2.00013'
+
+		num.beautify() - returns decimal-rounded, shortened float-like string
+			Example: num.beautify(4349.567, 3) -> 4.35k
+
+	"""
+
+	suffixes: list[str] = ['', 'k', 'm', 'b', 't']
+	multipliers: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 
 	@staticmethod
-	def shorten(value: int | float, decimals = 2):
+	def shorten(value: int | float, decimals: int = 2) -> str:
+		"""
+		Accepts:
+			value: str: int-like value with shortener at the end: 'k', 'm', 'b', 't'
+			decimals: int = 2: digit amount
 
-		if not isinstance(value, (int, float)):
-			return None
+		Returns:
+			Accepted value:
+				if not isinstance(float(value[:-1]), float)
+				if value[-1] not in multipliers: 'k', 'm', 'b', 't'
 
-		magnitude = 1000.0
+			Shortened float or int-like str
+
+		"""
+
+		if not isinstance(value, (int, float)) or decimals < 0:
+				return str(value)
 
 		sign = '-' if value < 0 else ''
 		value = abs(value)
+		magnitude = 1000.0
 
-		if value < magnitude:
-			return f"{sign}{value}"
-
-		for i, suffix in enumerate(num.suffixes, start=1):
-			unit = magnitude ** i
-
-			if value < unit * magnitude:
-				value = format(value / unit, f'.{decimals}f')
-				return f"{sign}{value}{suffix}"
-
-		value = format(value / (magnitude ** len(num.suffixes)), f'.{decimals}f')
-		return f'{sign}{value}t'
+		for i, suffix in enumerate(num.suffixes):
+				unit = magnitude ** i
+				if value < unit * magnitude or i == len(num.suffixes) - 1:
+						value /= unit
+						formatted = num.decim_round(value, decimals)
+						return f"{sign}{formatted}{suffix}" # .rstrip('0').rstrip('.')
 
 	@staticmethod
-	def unshorten(value: str) -> float | str:
+	def unshorten(value: str, round: bool = False, decimals: int = 2) -> float | int:
+		"""
+		Accepts:
+			value: str: int-like value with shortener at the end: 'k', 'm', 'b', 't'
+			round: bool = False | True: wether returned value should be rounded to integer
+
+		Returns:
+			Accepted value:
+				if not isinstance(float(value[:-1]), float)
+				if value[-1] not in multipliers: 'k', 'm', 'b', 't'
+
+			Unshortened float or int
+
+		"""
+
+		if not isinstance(value, str) or not isinstance(decimals, int) or decimals < 0:
+			return value
 
 		mp = value[-1].lower()
 		digit = value[:-1]
@@ -223,33 +308,42 @@ class num:
 		try:
 			digit = float(digit)
 			mp = num.multipliers[mp]
-			return digit * mp
 
-		except (ValueError, IndexError):
-			return num
+			if round is True:
+				unshortened = num.decim_round(digit * mp, decimals)
+
+			else:
+				unshortened = digit * mp
+
+			return unshortened
+
+		except (ValueError, KeyError):
+			return value
 
 	@staticmethod
 	def decim_round(value: float, decimals: int = 2, precission: int = 20) -> str:
 		"""
-
 		Accepts:
-			value: float - usually with mid-big decimals length
-			decimals: int - determines amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
-			precission: int - determines precission level (format(value, f'.->{precission}<-f'
+			value: float: usually with medium-big decimal length
+			decimals: int: determines amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
+			precission: int: determines precission level (format(value, f'.->{precission}<-f'
 
 		Returns:
-			accepted value:
+			Accepted value:
 				if value == 0,
 				not isinstance(value & (decimals, precission), float & int)
 				decimals & value < 1
 
-			str-like float
+			float-like str
 
 		"""
 
-		if value == 0: return value
-		elif not isinstance(value, float): return value
-		elif not (decimals > 0 and isinstance(decimals, int)) or not (precission > 0 and isinstance(precission, int)): return value
+		if value == 0:
+			return value
+		elif not isinstance(decimals, int) or not isinstance(precission, int):
+			return value
+		elif decimals < 0 or precission < 0:
+			return value
 
 		str_val = format(value, f'.{precission}f')
 
@@ -269,9 +363,59 @@ class num:
 			return integer
 
 		if len(decim) > decimals:
-			rounded = str(round(float(decim[:-2] + '.' + decim[-2:]))).rstrip('0')
+			round_part = decim[:decimals] + '.' + decim[decimals:]
+			rounded = str(round(float(round_part))).rstrip('0')
 			decim = '0' * i + rounded
 
 		else: decim = '0' * i + str(decim)
 
 		return integer + '.' + decim
+
+	@staticmethod
+	def beautify(value: int | float, decimals: int = 2, precission: int = 20):
+		return num.shorten(float(num.decim_round(value, decimals, precission)), decimals)
+
+if web3_toggle:
+
+	class web3_misc:
+
+		web3 = None
+
+		@staticmethod
+		def _gas(period: float | int = 10) -> None:
+
+			if not isinstance(web3_misc.web3, Web3):
+				return
+
+			global gas
+
+			while True:
+				gas = web3_misc.web3.eth.gas_price
+				print(gas)
+				time.sleep(period)
+
+		@staticmethod
+		def _gasPrice(tx: dict, period: float | int = 10) -> None:
+
+			if not isinstance(web3_misc.web3, Web3):
+				return
+
+			global gasPrice
+
+			while True:
+				gasPrice = web3_misc.web3.eth.estimate_gas(tx)
+				print(gasPrice)
+
+				time.sleep(period)
+
+		@staticmethod
+		def nonce(address: str) -> int:
+
+			if not isinstance(web3_misc.web3, Web3):
+				return
+
+			return web3_misc.web3.eth.get_transaction_count(address)
+
+else:
+	class web3_misc:
+		print('No web3.py found...')
