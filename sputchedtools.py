@@ -5,14 +5,14 @@ class Timer:
 	Code execution Timer, use 'with' keyword
 
 	Accepts:
-		txt = '': text after main print message
-		decimals = 2: time difference precission
+		txt: str = '': text after main print message
+		decimals: int = 2: time difference precission
 
 	"""
 
 	def __init__(self, txt = '', decimals = 2):
-		from time import time
-		self.time = time
+		from time import perf_counter
+		self.time = perf_counter
 		self.txt = txt
 		self.decimals = decimals
 
@@ -26,88 +26,75 @@ class Timer:
 class prints:
 
 	@staticmethod
-	def dashed(text: str, start_newlines: int = 1, end_newlines: int = 1, dash_length: int = 44, print_text: bool = True, return_text: bool = False) -> None:
-		#if not isinstance(text, str) or not isinstance(start_newlines, int) or not isinstance(end_newlines, int) or not isinstance(dash_length, int):
-		#  return None
-		
-		text_len = len(text)
+	def dashed(text: str, start_newlines: int = 1, end_newlines: int = 1, width: int = 44, char = '-') -> None:
+		print('\n' * start_newlines + text.center(width, char) + '\n' * end_newlines)
 
-		if text_len > dash_length:
-			print(text)
-			return
-
-		dashes = '-' * ( (dash_length - text_len) // 2 )
-		final_text = '\n' * start_newlines + dashes + text + dashes + '\n' * end_newlines
-
-		if print_text: print(final_text)
-		if return_text: return final_text
-	
 	@staticmethod
 	def tabled(data, headers, max_str_len_per_row=40, separate_rows=False):
-	
+
 		# Filter data to include only rows with length matching headers
 		filtered_data = [row for row in data if len(row) == len(headers)]
-		
+
 		# Determine the maximum width for each column
 		column_widths = {header: len(header) for header in headers}
 
 		for row in filtered_data:
 			for header, value in zip(headers, row):
-				
+
 				str_value = str(value)
-				
+
 				if len(str_value) > max_str_len_per_row:
 					column_widths[header] = max(column_widths[header], max_str_len_per_row)
-				
+
 				else:
 					column_widths[header] = max(column_widths[header], len(str_value))
-					
+
 		# Create a horizontal separator
 		separator = '+-' + '-+-'.join('-' * column_widths[header] for header in headers) + '-+'
-		
+
 		# Print the header
 		header_row = '| ' + ' | '.join(header.ljust(column_widths[header]) for header in headers) + ' |'
-		
+
 		print(separator)
 		print(header_row)
 		print(separator)
-		
+
 		# Print the table rows
 		for row_index, row in enumerate(filtered_data):
-			
+
 			# Check if any value exceeds the max_str_len_per_row
 			extended_rows = []
-			
+
 			for header, value in zip(headers, row):
-				
+
 				str_value = str(value)
-				
+
 				if len(str_value) > max_str_len_per_row:
 					# Break the string into chunks
 					chunks = [str_value[i:i+max_str_len_per_row] for i in range(0, len(str_value), max_str_len_per_row)]
-					
+
 					extended_rows.append(chunks)
-				
+
 				else:
 					extended_rows.append([str_value])
-					
+
 			# Determine the maximum number of lines required for the current row
 			max_lines = max(len(chunks) for chunks in extended_rows)
-			
+
 			# Print each line of the row
 			for line_index in range(max_lines):
 				row_str = '| ' + ' | '.join(
 				(extended_rows[i][line_index] if line_index < len(extended_rows[i]) else '').ljust(column_widths[header])
 				for i, header in enumerate(headers)
 				) + ' |'
-				
+
 				print(row_str)
-				
+
 			# Print a separator between rows if separate_rows is True
 			if separate_rows and row_index < len(filtered_data) - 1:
-				
+
 				print(separator)
-				
+
 		# Print the bottom border
 		print(separator)
 
@@ -151,52 +138,52 @@ class aio:
 
 		"""
 
-		import aiohttp, asyncio
+		import aiohttp, asyncio, logging
+
 		created_session = False
 		if session is None:
 			session = aiohttp.ClientSession()
 			created_session = True
 
 		try:
-			async with session.get(url, **kwargs) as response:
+				async with session.get(url, **kwargs) as response:
+						status = response.status
 
-				status = response.status
+						if response.ok and not str(response.url).endswith('/404/'):
+								
+								data_mapping = {
+									'text': response.text,
+									'read': response.read,
+									'json': response.json
+								}
 
-				if 200 <= response.status < 300 and str(response.url)[-5:] !=  '/404/':
+								if toreturn in data_mapping.keys():
+										data = await data_mapping[toreturn]()
+								else:
+										raise ValueError(f"Invalid 'toreturn' value: {toreturn}")
 
-					if toreturn == 'text':
-						data = await response.text()
-					elif toreturn == 'read':
-						data = await response.read()
-					elif toreturn == 'json':
-						data = await response.json()
-					else:
-						data = None
+								return data, status
 
-					return data, status
-
-				elif status == 403:
-					# print('\nToo many requests...')
-					return -2, status
-
-				elif status == 521:
-					return -1, status
-
-				else: return None, status
+						# Handle specific error codes
+						if status == 403:
+								return -2, status
+						elif status == 521:
+								return -1, status
+						else:
+								return None, status
 
 		except asyncio.TimeoutError:
-			return 0, None
+				return 0, None
 
 		except asyncio.CancelledError:
-			return None, None
+				return None, None
 
 		except Exception as e:
-			# print(f'\nFailed to get response from {url}')
-			return -3, e
+				return -3, e
 
 		finally:
-			if created_session is True:
-				await session.close()
+				if created_session:
+						await session.close()
 
 	@staticmethod
 	async def post(url, toreturn = 'json', session = None, **kwargs) -> tuple:
@@ -221,6 +208,7 @@ class aio:
 		"""
 
 		import aiohttp, asyncio
+
 		created_session = False
 		if session is None:
 			session = aiohttp.ClientSession()
@@ -231,35 +219,42 @@ class aio:
 			async with session.post(url, **kwargs) as response:
 				status = response.status
 
-				if 200 <= status < 300 and str(response.url)[-5:] !=  '/404/':
+				if response.ok and not str(response.url).endswith('/404/'):
+								
+					data_mapping = {
+						'text': response.text,
+						'read': response.read,
+						'json': response.json
+					}
 
-					if toreturn == 'text':
-						data = await response.text()
-					elif toreturn == 'read':
-						data = await response.read()
-					elif toreturn == 'json':
-						data = await response.json()
+					if toreturn in data_mapping.keys():
+							data = await data_mapping[toreturn]()
 					else:
-						data = None
-
+							raise ValueError(f"Invalid 'toreturn' value: {toreturn}")
+					
 					return data, status
 
+				if status == 403:
+						return -2, status
+				
+				elif status == 521:
+						return -1, status
+				
 				else:
-					return None, status
+						return None, status
 
 		except asyncio.TimeoutError:
-			return 0, None
+				return 0, None
 
 		except asyncio.CancelledError:
-			return None, None
+				return None, None
 
 		except Exception as e:
-			# print(f'\nFailed to get response from {url}')
-			return -3, e
+				return -3, e
 
 		finally:
-			if created_session is True:
-				await session.close()
+				if created_session:
+						await session.close()
 
 	@staticmethod
 	async def open(file: str, action: str = 'read', mode: str = 'r', content = None, **kwargs):
@@ -303,7 +298,7 @@ class aio:
 def enhance_loop():
 	from sys import platform
 	import asyncio
-	
+
 	try:
 
 		if 'win' in platform:
@@ -471,7 +466,7 @@ class web3_misc:
 	web3 = None
 	gas = None
 	gasPrice = None
-	
+
 	@staticmethod
 	def _gas(period: float | int = 10) -> None:
 		import time
