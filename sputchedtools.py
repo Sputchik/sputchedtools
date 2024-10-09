@@ -1,13 +1,3 @@
-import asyncio, aiohttp, aiofiles, time
-from sys import platform
-
-try:
-	from web3 import Web3
-	web3_toggle = True
-
-except:
-	web3_toggle = False
-
 class Timer:
 
 	"""
@@ -21,16 +11,105 @@ class Timer:
 	"""
 
 	def __init__(self, txt = '', decimals = 2):
+		from time import time
+		self.time = time
 		self.txt = txt
 		self.decimals = decimals
 
 	def __enter__(self):
-		self.was = time.time()
+		self.was = self.time()
 
 	def __exit__(self, f, u, c):
-		self.diff = format((time.time() - self.was), f'.{self.decimals}f')
+		self.diff = format((self.time() - self.was), f'.{self.decimals}f')
 		print(f'\nTaken time: {self.diff}s {self.txt}')
 
+class prints:
+
+	@staticmethod
+	def dashed(text: str, start_newlines: int = 1, end_newlines: int = 1, dash_length: int = 44, print_text: bool = True, return_text: bool = False) -> None:
+		#if not isinstance(text, str) or not isinstance(start_newlines, int) or not isinstance(end_newlines, int) or not isinstance(dash_length, int):
+		#  return None
+		
+		text_len = len(text)
+
+		if text_len > dash_length:
+			print(text)
+			return
+
+		dashes = '-' * ( (dash_length - text_len) // 2 )
+		final_text = '\n' * start_newlines + dashes + text + dashes + '\n' * end_newlines
+
+		if print_text: print(final_text)
+		if return_text: return final_text
+	
+	@staticmethod
+	def tabled(data, headers, max_str_len_per_row=40, separate_rows=False):
+	
+		# Filter data to include only rows with length matching headers
+		filtered_data = [row for row in data if len(row) == len(headers)]
+		
+		# Determine the maximum width for each column
+		column_widths = {header: len(header) for header in headers}
+
+		for row in filtered_data:
+			for header, value in zip(headers, row):
+				
+				str_value = str(value)
+				
+				if len(str_value) > max_str_len_per_row:
+					column_widths[header] = max(column_widths[header], max_str_len_per_row)
+				
+				else:
+					column_widths[header] = max(column_widths[header], len(str_value))
+					
+		# Create a horizontal separator
+		separator = '+-' + '-+-'.join('-' * column_widths[header] for header in headers) + '-+'
+		
+		# Print the header
+		header_row = '| ' + ' | '.join(header.ljust(column_widths[header]) for header in headers) + ' |'
+		
+		print(separator)
+		print(header_row)
+		print(separator)
+		
+		# Print the table rows
+		for row_index, row in enumerate(filtered_data):
+			
+			# Check if any value exceeds the max_str_len_per_row
+			extended_rows = []
+			
+			for header, value in zip(headers, row):
+				
+				str_value = str(value)
+				
+				if len(str_value) > max_str_len_per_row:
+					# Break the string into chunks
+					chunks = [str_value[i:i+max_str_len_per_row] for i in range(0, len(str_value), max_str_len_per_row)]
+					
+					extended_rows.append(chunks)
+				
+				else:
+					extended_rows.append([str_value])
+					
+			# Determine the maximum number of lines required for the current row
+			max_lines = max(len(chunks) for chunks in extended_rows)
+			
+			# Print each line of the row
+			for line_index in range(max_lines):
+				row_str = '| ' + ' | '.join(
+				(extended_rows[i][line_index] if line_index < len(extended_rows[i]) else '').ljust(column_widths[header])
+				for i, header in enumerate(headers)
+				) + ' |'
+				
+				print(row_str)
+				
+			# Print a separator between rows if separate_rows is True
+			if separate_rows and row_index < len(filtered_data) - 1:
+				
+				print(separator)
+				
+		# Print the bottom border
+		print(separator)
 
 class aio:
 	"""
@@ -72,6 +151,7 @@ class aio:
 
 		"""
 
+		import aiohttp, asyncio
 		created_session = False
 		if session is None:
 			session = aiohttp.ClientSession()
@@ -140,6 +220,7 @@ class aio:
 
 		"""
 
+		import aiohttp, asyncio
 		created_session = False
 		if session is None:
 			session = aiohttp.ClientSession()
@@ -198,6 +279,9 @@ class aio:
 			mode = 'write': content write to file status
 
 		"""
+
+		import aiofiles
+
 		async with aiofiles.open(file, mode, **kwargs) as f:
 
 			if action == 'read': return await f.read()
@@ -217,7 +301,9 @@ class aio:
 			return await func(*args, **kwargs)
 
 def enhance_loop():
-
+	from sys import platform
+	import asyncio
+	
 	try:
 
 		if 'win' in platform:
@@ -375,47 +461,35 @@ class num:
 	def beautify(value: int | float, decimals: int = 2, precission: int = 20):
 		return num.shorten(float(num.decim_round(value, decimals, precission)), decimals)
 
-if web3_toggle:
+class web3_misc:
+	"""
+	Methos: _gas, _gasPrice, nonce
+	Declare web3_misc.web3 to be able to use them
 
-	class web3_misc:
+	"""
 
-		web3 = None
+	web3 = None
+	gas = None
+	gasPrice = None
+	
+	@staticmethod
+	def _gas(period: float | int = 10) -> None:
+		import time
+		global gas
 
-		@staticmethod
-		def _gas(period: float | int = 10) -> None:
+		while True:
+			web3_misc.gas = web3_misc.web3.eth.gas_price
+			time.sleep(period)
 
-			if not isinstance(web3_misc.web3, Web3):
-				return
+	@staticmethod
+	def _gasPrice(tx: dict, period: float | int = 10) -> None:
+		import time
+		global gasPrice
 
-			global gas
+		while True:
+			web3_misc.gasPrice = web3_misc.web3.eth.estimate_gas(tx)
+			time.sleep(period)
 
-			while True:
-				gas = web3_misc.web3.eth.gas_price
-				print(gas)
-				time.sleep(period)
-
-		@staticmethod
-		def _gasPrice(tx: dict, period: float | int = 10) -> None:
-
-			if not isinstance(web3_misc.web3, Web3):
-				return
-
-			global gasPrice
-
-			while True:
-				gasPrice = web3_misc.web3.eth.estimate_gas(tx)
-				print(gasPrice)
-
-				time.sleep(period)
-
-		@staticmethod
-		def nonce(address: str) -> int:
-
-			if not isinstance(web3_misc.web3, Web3):
-				return
-
-			return web3_misc.web3.eth.get_transaction_count(address)
-
-else:
-	class web3_misc:
-		print('No web3.py found...')
+	@staticmethod
+	def nonce(address: str) -> int:
+		return web3_misc.web3.eth.get_transaction_count(address)
