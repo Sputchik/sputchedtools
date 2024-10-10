@@ -4,7 +4,9 @@ with Timer('Test completed?', 4):
 	import asyncio
 	enhance_loop()
 
-	print(asyncio.run(aio.request('https://duckduckgo.com', ssl = False)))
+	response = asyncio.run(aio.request('https://duckduckgo.com/123', 'ok+url+status', ssl = False, handle_status=True))
+
+	print(response)
 
 	with Timer('calcs', 4):
 		print(num.shorten(4309.389, 2), num.unshorten('56b', True), num.decim_round(2.124002567, 6))

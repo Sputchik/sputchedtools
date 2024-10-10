@@ -1,3 +1,7 @@
+from typing import Literal
+
+ReturnTypes = Literal['url', 'real_url', 'status', 'reason', 'encoding', 'history', 'text', 'read', 'json', 'raw', 'content_type', 'charset', 'headers', 'cookies', 'request_info', 'version', 'release', 'raise_for_status']
+
 class Timer:
 
 	"""
@@ -108,102 +112,63 @@ class aio:
 
 	"""
 
+	data_map = {
+			'url': lambda response: response.url,
+			'real_url': lambda response: response.real_url,
+			'status': lambda response: response.status,
+			'reason': lambda response: response.reason,
+			'encoding': lambda response: response.get_encoding(),
+			'history': lambda response: response.history,
+
+			'text': lambda response: response.text(),
+			'read': lambda response: response.read(),
+			'json': lambda response: response.json(),
+			'raw': lambda response: response.content.read(),
+
+			'content_type': lambda response: response.content_type,
+			'charset': lambda response: response.charset,
+			'headers': lambda response: response.headers,
+			'cookies': lambda response: response.cookies,
+
+			'request_info': lambda response: response.request_info,
+			'version': lambda response: response.version,
+			'release': lambda response: response.release(),
+			'raise_for_status': lambda response: response.raise_for_status(),
+	}
+	response_status_map = {
+		403: -2,
+		521: -1,
+	}
+	
 	@staticmethod
 	async def request(
 		url: str,
-		toreturn: str = 'text',
+		toreturn: ReturnTypes = 'text',
 		session = None,
+		handle_status = True,
 		**kwargs,
 
-		) -> tuple:
+		):
 
 		"""
 		Accepts:
 			Args:
 				url
 			Kwargs:
-				toreturn: read, text, json
+				toreturn: ReturnTypes or any other ClientResponse full-path attribute
 				session: aiohttp.ClientSession
+				handle_status: bool - Wether to insert corresponding status id to first index. Ensures compatibilty with old scripts
 				any other session.get() argument
 
 		Returns:
-			Valid response: (data, response.status)
-			status == 403: (-2, status)
-			status == 521: (-1, status)
-			status not in range(200, 400): (None, status)
+			Valid response: [data]
+			status == 403: [-2] + toreturn
+			status == 521: [-1] + toreturn
+			status not in range(200, 400): [None] + toreturn
 
-			Request Timeout: (0, None)
-			Cancelled Error: (None, None)
-			Exception: (-3, Exception as e)
-
-		"""
-
-		import aiohttp, asyncio, logging
-
-		created_session = False
-		if session is None:
-			session = aiohttp.ClientSession()
-			created_session = True
-
-		try:
-				async with session.get(url, **kwargs) as response:
-						status = response.status
-
-						if response.ok and not str(response.url).endswith('/404/'):
-								
-								data_mapping = {
-									'text': response.text,
-									'read': response.read,
-									'json': response.json
-								}
-
-								if toreturn in data_mapping.keys():
-										data = await data_mapping[toreturn]()
-								else:
-										raise ValueError(f"Invalid 'toreturn' value: {toreturn}")
-
-								return data, status
-
-						# Handle specific error codes
-						if status == 403:
-								return -2, status
-						elif status == 521:
-								return -1, status
-						else:
-								return None, status
-
-		except asyncio.TimeoutError:
-				return 0, None
-
-		except asyncio.CancelledError:
-				return None, None
-
-		except Exception as e:
-				return -3, e
-
-		finally:
-				if created_session:
-						await session.close()
-
-	@staticmethod
-	async def post(url, toreturn = 'json', session = None, **kwargs) -> tuple:
-
-		"""
-		Accepts:
-			Args:
-				url
-			Kwargs:
-				toreturn: read, text, json
-				session: aiohttp.ClientSession
-				any other session.get() argument
-
-		Returns:
-			Valid response: (data, response.status)
-			status not in range(200, 400): (None, status)
-
-			Request Timeout: (0, None)
-			Cancelled Error: (None, None)
-			Exception: (-3, Exception as e)
+			Request Timeout: [0] + toreturn
+			Cancelled Error: [None] + toreturn
+			Exception: [-3] + toreturn
 
 		"""
 
@@ -214,47 +179,130 @@ class aio:
 			session = aiohttp.ClientSession()
 			created_session = True
 
+		return_items = []
+		
 		try:
+				async with session.get(url, **kwargs) as response:
+						
+						if handle_status and not response.ok:
+								status = aio.response_status_map.get(response.status)
+								return_items.append(status)
+							
+						for item in toreturn.split('+'):
+							value = aio.data_map.get(item)
 
-			async with session.post(url, **kwargs) as response:
-				status = response.status
+							try:
+									if value is None:
+											result = eval(f'response.{item}')
+											if callable(result):
+													result = result()
+											elif asyncio.iscoroutinefunction(result):
+													result = await result()
+									else:
+											result = value(response)
+											if asyncio.iscoroutine(result):
+													result = await result
+							except:
+									result = None
 
-				if response.ok and not str(response.url).endswith('/404/'):
-								
-					data_mapping = {
-						'text': response.text,
-						'read': response.read,
-						'json': response.json
-					}
-
-					if toreturn in data_mapping.keys():
-							data = await data_mapping[toreturn]()
-					else:
-							raise ValueError(f"Invalid 'toreturn' value: {toreturn}")
-					
-					return data, status
-
-				if status == 403:
-						return -2, status
-				
-				elif status == 521:
-						return -1, status
-				
-				else:
-						return None, status
+							return_items.append(result)
 
 		except asyncio.TimeoutError:
-				return 0, None
+				return_items.insert(0, 0)
 
 		except asyncio.CancelledError:
-				return None, None
+				return_items.insert(0, None)
 
-		except Exception as e:
-				return -3, e
+		except:
+				return_items .insert(0, -3)
 
 		finally:
 				if created_session:
 						await session.close()
+				
+				return return_items
+
+	@staticmethod
+	async def post(
+		url: str,
+		toreturn: ReturnTypes = 'text',
+		session = None,
+		handle_status = True,
+		**kwargs,
+
+		):
+
+		"""
+		Accepts:
+			Args:
+				url
+			Kwargs:
+				toreturn: ReturnTypes or any other ClientResponse full-path attribute
+				session: aiohttp.ClientSession
+				handle_status: bool - Wether to insert corresponding status id to first index. Ensures compatibilty with old scripts
+				any other session.post() argument
+
+		Returns:
+			Valid response: [data]
+			status == 403: [-2] + toreturn
+			status == 521: [-1] + toreturn
+			status not in range(200, 400): [None] + toreturn
+
+			Request Timeout: [0] + toreturn
+			Cancelled Error: [None] + toreturn
+			Exception: [-3] + toreturn
+
+		"""
+
+		import aiohttp, asyncio
+
+		created_session = False
+		if session is None:
+			session = aiohttp.ClientSession()
+			created_session = True
+
+		return_items = []
+		
+		try:
+				async with session.post(url, **kwargs) as response:
+						
+						if handle_status and not response.ok:
+								status = aio.response_status_map.get(response.status)
+								return_items.append(status)
+							
+						for item in toreturn.split('+'):
+							value = aio.data_map.get(item)
+
+							try:
+									if value is None:
+											result = eval(f'response.{item}')
+											if callable(result):
+													result = result()
+											elif asyncio.iscoroutinefunction(result):
+													result = await result()
+									else:
+											result = value(response)
+											if asyncio.iscoroutine(result):
+													result = await result
+							except:
+									result = None
+
+							return_items.append(result)
+
+		except asyncio.TimeoutError:
+				return_items.insert(0, 0)
+
+		except asyncio.CancelledError:
+				return_items.insert(0, None)
+
+		except:
+				return_items .insert(0, -3)
+
+		finally:
+				if created_session:
+						await session.close()
+				
+				return return_items
 
 	@staticmethod
 	async def open(file: str, action: str = 'read', mode: str = 'r', content = None, **kwargs):

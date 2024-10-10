@@ -2,3 +2,4 @@ build
 dist
 sputchedtools.egg-info
 __pycache__
+attr_parser.py
