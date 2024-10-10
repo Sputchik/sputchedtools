@@ -9,9 +9,9 @@ with Timer('Test completed?', 4):
 	print(response)
 
 	with Timer('calcs', 4):
-		print(num.shorten(4309.389, 2), num.unshorten('56b', True), num.decim_round(2.124002567, 6))
+		print(num.shorten(4309.389, 2), num.unshorten('56b', True), num.decim_round(2.124992567, -1))
 
-	print(num.beautify(4349.567, 3))
+	print(num.beautify(4349.567, -1))
 
 headers = ['Name', 'Age', 'City']
 data = [

@@ -386,6 +386,7 @@ class num:
 		lambda x: x > 100: 1,
 		lambda x: x > 10: 2,
 		lambda x: x > 5: 3,
+		lambda x: True: 4
 	}
 
 	@staticmethod
@@ -404,7 +405,7 @@ class num:
 
 		"""
 
-		if not isinstance(value, (int, float)) or decimals < 0:
+		if not isinstance(value, (int, float)) or decimals < -1:
 				return str(value)
 
 		sign = '-' if value < 0 else ''
@@ -434,7 +435,7 @@ class num:
 
 		"""
 
-		if not isinstance(value, str) or not isinstance(decimals, int) or decimals < 0:
+		if not isinstance(value, str) or not isinstance(decimals, int) or decimals < -1:
 			return value
 
 		mp = value[-1].lower()
@@ -484,17 +485,19 @@ class num:
 
 		integer = str_val.split('.')[0]
 		decim = str_val.split('.')[1]
-
+		
 		if integer != '0':
 			i = 0
 			if decimals == -1:
 				for condition, decim_amount in num.decim_map.items():
 					if condition(abs(value)):
-
-						if decim_amount != 0:
-							return round(value, decim_amount)
 						
-						else: return round(value)
+						if decim_amount != 4:
+							return str(round(value, decim_amount if decim_amount != 0 else None))
+						
+						else:
+							decimals = 4
+							break
 
 		else:
 			for i in range(len(decim)):
