@@ -381,6 +381,12 @@ class num:
 
 	suffixes: list[str] = ['', 'k', 'm', 'b', 't']
 	multipliers: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
+	decim_map: dict[callable, int] = {
+		lambda x: x > 1000: 0,
+		lambda x: x > 100: 1,
+		lambda x: x > 10: 2,
+		lambda x: x > 5: 3,
+	}
 
 	@staticmethod
 	def shorten(value: int | float, decimals: int = 2) -> str:
@@ -471,7 +477,7 @@ class num:
 			return value
 		elif not isinstance(decimals, int) or not isinstance(precission, int):
 			return value
-		elif decimals < 0 or precission < 0:
+		elif decimals < -1 or precission < 0:
 			return value
 
 		str_val = format(value, f'.{precission}f')
@@ -481,13 +487,21 @@ class num:
 
 		if integer != '0':
 			i = 0
+			if decimals == -1:
+				for condition, decim_amount in num.decim_map.items():
+					if condition(abs(value)):
+
+						if decim_amount != 0:
+							return round(value, decim_amount)
+						
+						else: return round(value)
 
 		else:
 			for i in range(len(decim)):
 				if decim[i] != '0': break
 
 		decim = decim[i:i + decimals + 2].rstrip('0')
-
+		
 		if decim == '':
 			return integer
 
@@ -498,7 +512,7 @@ class num:
 
 		else: decim = '0' * i + str(decim)
 
-		return integer + '.' + decim
+		return (integer + '.' + decim).rstrip('.')
 
 	@staticmethod
 	def beautify(value: int | float, decimals: int = 2, precission: int = 20):
