@@ -4,14 +4,15 @@ with Timer('Test completed?', 4):
 	import asyncio
 	enhance_loop()
 
-	response = asyncio.run(aio.request('https://duckduckgo.com/123', 'ok+url+status', ssl = False, handle_status=True))
+	#response = asyncio.run(aio.request('https://duckduckgo.com/123', 'ok+url+status', ssl = False, handle_status=True))
 
-	print(response)
+	#print(response)
 
 	with Timer('calcs', 4):
 		print(num.shorten(4309.389, 2), num.unshorten('56b', True), num.decim_round(2.124992567, -1))
 
 	print(num.beautify(4349.567, -1))
+	print(num.decim_round(2.0002918273291, -1))
 
 headers = ['Name', 'Age', 'City']
 data = [

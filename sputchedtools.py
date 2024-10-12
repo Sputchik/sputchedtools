@@ -457,7 +457,7 @@ class num:
 			return value
 
 	@staticmethod
-	def decim_round(value: float, decimals: int = 2, precission: int = 20) -> str:
+	def decim_round(value: float, decimals: int = 2, round_with_numbers_higher_1: bool = True, precission: int = 20) -> str:
 		"""
 		Accepts:
 			value: float: usually with medium-big decimal length
@@ -486,23 +486,29 @@ class num:
 		integer = str_val.split('.')[0]
 		decim = str_val.split('.')[1]
 		
-		if integer != '0':
-			i = 0
-			if decimals == -1:
-				for condition, decim_amount in num.decim_map.items():
-					if condition(abs(value)):
-						
-						if decim_amount != 4:
+		if decimals == -1:
+			for condition, decim_amount in num.decim_map.items():
+				if condition(abs(value)):
+					
+					if decim_amount != 4:
+
+						if round_with_numbers_higher_1:
 							return str(round(value, decim_amount if decim_amount != 0 else None))
 						
 						else:
-							decimals = 4
+							decimals = decim_amount
 							break
-
-		else:
-			for i in range(len(decim)):
-				if decim[i] != '0': break
-
+					
+					else:
+						decimals = 4
+						break
+		
+		for i in range(len(decim)):
+			if decim[i] != '0': break
+		
+		if integer != '0' and round_with_numbers_higher_1:
+			return str(round(value, decimals if decimals != 0 else None))
+		
 		decim = decim[i:i + decimals + 2].rstrip('0')
 		
 		if decim == '':
