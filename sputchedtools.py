@@ -303,7 +303,7 @@ class aio:
 		import aiohttp, asyncio
 
 		created_session = False
-		if session is None:
+		if session is None or not isinstance(session, aiohttp.ClientSession):
 			session = aiohttp.ClientSession()
 			created_session = True
 
@@ -385,7 +385,7 @@ class aio:
 		import aiohttp, asyncio
 
 		created_session = False
-		if session is None:
+		if session is None or not isinstance(session, aiohttp.ClientSession):
 			session = aiohttp.ClientSession()
 			created_session = True
 
