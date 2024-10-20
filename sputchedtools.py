@@ -1,4 +1,5 @@
 from typing import Literal
+import sys
 
 ReturnTypes = Literal['url', 'real_url', 'status', 'reason', 'encoding', 'history', 'text', 'read', 'json', 'raw', 'content_type', 'charset', 'headers', 'cookies', 'request_info', 'version', 'release', 'raise_for_status']
 
@@ -26,6 +27,33 @@ class Timer:
 	def __exit__(self, f, u, c):
 		self.diff = format((self.time() - self.was), f'.{self.decimals}f')
 		print(f'\nTaken time: {self.diff}s {self.txt}')
+
+class SimpleProgressBar:
+    def __init__(self, text: str, overall_task_amount: int, final_text: str = "Done"):
+        self.text = text
+        self.overall_task_amount = overall_task_amount
+        self._completed_tasks = 0
+        self.final_text = final_text
+
+    @property
+    def completed_tasks(self):
+        """Get the number of completed tasks."""
+        return self._completed_tasks
+
+    def update(self, increment: int = 1):
+        self._completed_tasks += increment
+        self._print_progress()
+
+    def _print_progress(self):
+        # Using '\r' to overwrite the line in the terminal
+        sys.stdout.write(f'\r{self.text} {self._completed_tasks}/{self.overall_task_amount}')
+        sys.stdout.flush()
+
+    def finish(self):
+        self.finish_message = f'\r{self.text} {self._completed_tasks}/{self.overall_task_amount} {self.final_text}\n'
+        sys.stdout.write(self.finish_message)
+        sys.stdout.flush()
+        self._completed_tasks = 0
 
 class prints:
 
