@@ -32,7 +32,7 @@ class Timer:
 class ProgressBar:
 		def __init__(self, iterator: Iterator | Iterable, text: str = 'Processing...', task_amount: int = None, final_text: str = "Done"):
 
-				if not isinstance(iterator, Iterator):
+				if iterator and not isinstance(iterator, Iterator):
 						if not hasattr(iterator, '__iter__'):
 								raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
 						self.iterator = iterator.__iter__()
