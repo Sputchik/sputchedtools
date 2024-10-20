@@ -1,4 +1,5 @@
 from typing import Literal
+from collections.abc import Iterator, Iterable
 import sys
 
 ReturnTypes = Literal['url', 'real_url', 'status', 'reason', 'encoding', 'history', 'text', 'read', 'json', 'raw', 'content_type', 'charset', 'headers', 'cookies', 'request_info', 'version', 'release', 'raise_for_status']
@@ -28,32 +29,131 @@ class Timer:
 		self.diff = format((self.time() - self.was), f'.{self.decimals}f')
 		print(f'\nTaken time: {self.diff}s {self.txt}')
 
-class SimpleProgressBar:
-    def __init__(self, text: str, overall_task_amount: int, final_text: str = "Done"):
-        self.text = text
-        self.overall_task_amount = overall_task_amount
-        self._completed_tasks = 0
-        self.final_text = final_text
+class ProgressBar:
+		def __init__(self, iterator: Iterator | Iterable, text: str = 'Processing...', task_amount: int = None, final_text: str = "Done"):
 
-    @property
-    def completed_tasks(self):
-        """Get the number of completed tasks."""
-        return self._completed_tasks
+				if not isinstance(iterator, Iterator):
+						if not hasattr(iterator, '__iter__'):
+								raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+						self.iterator = iterator.__iter__()
 
-    def update(self, increment: int = 1):
-        self._completed_tasks += increment
-        self._print_progress()
+				else: self.iterator = iterator
 
-    def _print_progress(self):
-        # Using '\r' to overwrite the line in the terminal
-        sys.stdout.write(f'\r{self.text} {self._completed_tasks}/{self.overall_task_amount}')
-        sys.stdout.flush()
+				if task_amount is None:
+						if not hasattr(iterator, '__len__'):
+								raise AttributeError(f"You did not provide task amount for Iterator or object with no __len__ attribute\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+						self.task_amount = iterator.__len__()
 
-    def finish(self):
-        self.finish_message = f'\r{self.text} {self._completed_tasks}/{self.overall_task_amount} {self.final_text}\n'
-        sys.stdout.write(self.finish_message)
-        sys.stdout.flush()
-        self._completed_tasks = 0
+				else: self.task_amount = task_amount
+
+				self.text = text
+				self._completed_tasks = 0
+				self.final_text = final_text
+
+		@property
+		def task_amount(self):
+				"""Get the overall task amount."""
+				return self._task_amount
+
+		@task_amount.setter
+		def task_amount(self, value: int):
+				"""Set the overall task amount."""
+				self._task_amount = value
+
+		@property
+		def completed_tasks(self):
+				"""Get the number of completed tasks."""
+				return self._completed_tasks
+
+		def __iter__(self):
+				return self
+
+		def __next__(self):
+				#if self._completed_tasks < self._task_amount:
+						try:
+								item = next(self.iterator)
+								self.update()
+								return self._completed_tasks, item
+						except StopIteration:
+								self.finish()
+								raise
+				#else:
+				#		self.finish()
+				#		raise StopIteration
+
+		def update(self, increment: int = 1):
+				self._completed_tasks += increment
+				self._print_progress()
+
+		def _print_progress(self):
+				# Using '\r' to overwrite the line in the terminal
+				sys.stdout.write(f'\r{self.text} {self._completed_tasks}/{self._task_amount}')
+				sys.stdout.flush()
+
+		def finish(self):
+				self.finish_message = f'\r{self.text} {self._completed_tasks}/{self._task_amount} {self.final_text}\n'
+				sys.stdout.write(self.finish_message)
+				sys.stdout.flush()
+
+class AsyncProgressBar:
+		def __init__(self, text: str, task_amount: int = None, final_text: str = "Done", tasks=None):
+				import asyncio
+				self.asyncio = asyncio
+				self.text = text
+				self.task_amount = task_amount
+				self.final_text = final_text
+				self._completed_tasks = 0
+
+				if tasks is not None:
+						if hasattr(tasks, '__aiter__'):
+								self.tasks = tasks
+						else:
+								raise ValueError("tasks must be an async iterator or None")
+
+		async def _update(self, increment: int = 1):
+				self._completed_tasks += increment
+				self._print_progress()
+
+		def _print_progress(self):
+				if self.task_amount is not None:
+						sys.stdout.write(f'\r{self.text} {self._completed_tasks}/{self.task_amount}')
+				else:
+						sys.stdout.write(f'\r{self.text} {self._completed_tasks}')
+				sys.stdout.flush()
+
+		async def _finish(self):
+				if self.task_amount is not None:
+						self.finish_message = f'\r{self.text} {self._completed_tasks}/{self.task_amount} {self.final_text}\n'
+				else:
+						self.finish_message = f'\r{self.text} {self._completed_tasks} {self.final_text}\n'
+				sys.stdout.write(self.finish_message)
+				sys.stdout.flush()
+				self._completed_tasks = 0
+
+		async def as_completed(self, tasks):
+				for task in self.asyncio.as_completed(tasks):
+						result = await task
+						await self._update()
+						yield result
+				await self._finish()
+
+		async def gather(self, tasks):
+				results = []
+				for task in self.asyncio.as_completed(tasks):
+						result = await task
+						await self._update()
+						results.append(result)
+				await self._finish()
+				return results
+
+		async def __aiter__(self):
+				if not hasattr(self, 'tasks'):
+						raise ValueError("AsyncProgressBar object was not initialized with an async iterator")
+
+				async for task in self.tasks:
+						await self._update()
+						yield task
+				await self._finish()
 
 class prints:
 
@@ -167,7 +267,7 @@ class aio:
 		403: -2,
 		521: -1,
 	}
-	
+
 	@staticmethod
 	async def request(
 		url: str,
@@ -208,14 +308,14 @@ class aio:
 			created_session = True
 
 		return_items = []
-		
+
 		try:
 				async with session.get(url, **kwargs) as response:
-						
+
 						if handle_status and not response.ok:
 								status = aio.response_status_map.get(response.status)
 								return_items.append(status)
-							
+
 						for item in toreturn.split('+'):
 							value = aio.data_map.get(item)
 
@@ -247,7 +347,7 @@ class aio:
 		finally:
 				if created_session:
 						await session.close()
-				
+
 				return return_items
 
 	@staticmethod
@@ -290,14 +390,14 @@ class aio:
 			created_session = True
 
 		return_items = []
-		
+
 		try:
 				async with session.post(url, **kwargs) as response:
-						
+
 						if handle_status and not response.ok:
 								status = aio.response_status_map.get(response.status)
 								return_items.append(status)
-							
+
 						for item in toreturn.split('+'):
 							value = aio.data_map.get(item)
 
@@ -329,7 +429,7 @@ class aio:
 		finally:
 				if created_session:
 						await session.close()
-				
+
 				return return_items
 
 	@staticmethod
@@ -513,32 +613,32 @@ class num:
 
 		integer = str_val.split('.')[0]
 		decim = str_val.split('.')[1]
-		
+
 		if decimals == -1:
 			for condition, decim_amount in num.decim_map.items():
 				if condition(abs(value)):
-					
+
 					if decim_amount != 4:
 
 						if round_with_numbers_higher_1:
 							return str(round(value, decim_amount if decim_amount != 0 else None))
-						
+
 						else:
 							decimals = decim_amount
 							break
-					
+
 					else:
 						decimals = 4
 						break
-		
+
 		for i in range(len(decim)):
 			if decim[i] != '0': break
-		
+
 		if integer != '0' and round_with_numbers_higher_1:
 			return str(round(value, decimals if decimals != 0 else None))
-		
+
 		decim = decim[i:i + decimals + 2].rstrip('0')
-		
+
 		if decim == '':
 			return integer
 
@@ -587,3 +687,76 @@ class web3_misc:
 	@staticmethod
 	def nonce(address: str) -> int:
 		return web3_misc.web3.eth.get_transaction_count(address)
+
+# format_mc_versions() Helper function to determine if one version is the direct successor of another
+def is_direct_successor(v1, v2):
+		if (v1.startswith('1.') != v2.startswith('1.')) or \
+				any(sub in v1.lower() for sub in ['-pre', '-rc']) or \
+				any(sub in v2.lower() for sub in ['-pre', '-rc']):
+
+				return True
+
+		try:
+				parts1 = [int(part) for part in v1.split('.')]
+				parts2 = [int(part) for part in v2.split('.')]
+
+				if len(parts1) == 2:
+						parts1.append(0)
+				if len(parts2) == 2:
+						parts2.append(0)
+
+				if parts1[0] == parts2[0]:
+
+						if parts1[1] == parts2[1]:
+								return parts1[2] + 1 == parts2[2]
+						elif parts1[1] + 1 == parts2[1]:
+								return parts2[2] == 0
+
+				return False
+
+		except ValueError:
+				return False
+
+def format_mc_versions(mc_vers):
+		"""
+		
+		Not yet works correct with snapshots, dev and pre-release builds
+		Isn't accurate when base changes (may think 1.20 goes after 1.19.1 if it's before)
+
+		"""
+		if not mc_vers:
+				return ''
+
+		# Initialize the message and the starting point for a range of consecutive versions
+		msg = ''
+		start_ver = None
+		last_ver = None
+
+		for i in range(len(mc_vers)):
+				ver = mc_vers[i]
+
+				# Check if current version follows the last version directly
+				if last_ver is not None and is_direct_successor(last_ver, ver):
+						last_ver = ver
+						continue
+
+				# If not, handle the end of a version range and reset
+				if last_ver is not None:
+						if start_ver != last_ver:
+								msg += f'{start_ver}-{last_ver}, '
+						else:
+								msg += f'{last_ver}, '
+
+				# Set new start and last versions
+				start_ver = ver
+				last_ver = ver
+
+		# Add the last processed version or range
+		if last_ver is not None:
+
+				if start_ver != last_ver:
+						msg += f'{start_ver}-{last_ver}'
+				else:
+						msg += f'{last_ver}'
+
+		return msg.strip(', ')
