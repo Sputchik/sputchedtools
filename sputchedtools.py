@@ -776,10 +776,7 @@ class Web3Misc:
 
 # format_mc_versions() Helper function to determine if one version is the direct successor of another
 def is_direct_successor(v1, v2):
-		if (v1.startswith('1.') != v2.startswith('1.')) or \
-				any(sub in v1.lower() for sub in ['-pre', '-rc']) or \
-				any(sub in v2.lower() for sub in ['-pre', '-rc']):
-
+		if (v1.startswith('1.') and not v2.startswith('1.')) or (not v1.startswith('1.') and v2.startswith('1.')) or (not v1.startswith('1.') and not v2.startswith('1.')) or '-pre' in v1.lower() or '-rc' in v1.lower() or '-pre' in v2.lower() or '-rc' in v2.lower():
 				return True
 
 		try:
@@ -804,12 +801,6 @@ def is_direct_successor(v1, v2):
 				return False
 
 def format_mc_versions(mc_vers):
-		"""
-
-		Not yet works correct with snapshots, dev and pre-release builds
-		Isn't accurate when base changes (may think 1.20 goes after 1.19.1 if it's before)
-
-		"""
 		if not mc_vers:
 				return ''
 
