@@ -15,13 +15,13 @@ with Timer('Test completed?', 4):
 		print(num.decim_round(2.0002918273291, -1))
 	
 
-headers = ['Name', 'Age', 'City']
-data = [
-		['John', 25, 'New York'],
-		['Alice', 30, 'London'],
-		['Bob', 35, 'Petrosyan'],  # This row will be skipped due to mismatching length
-		['Sarah', 28, 'Paris'],
-		['David', 32, 'Sydney']
-]
+	headers = ['Name', 'Age', 'City']
+	data = [
+			['John', 25, 'New York'],
+			['Alice', 30, 'London'],
+			['Bob', 35, 'Petrosyan'],  # This row will be skipped due to mismatching length
+			['Sarah', 28, 'Paris'],
+			['David', 32, 'Sydney']
+	]
 
-prints.tabled(data, headers, max_str_len_per_row=30, separate_rows=True)
+	prints.tabled(data, headers, max_str_len_per_row=30, separate_rows=True)

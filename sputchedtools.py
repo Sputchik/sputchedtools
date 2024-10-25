@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Union, Optional
 from collections.abc import Iterator, Iterable
-import sys
+import sys, time
 
 ReturnTypes = Literal['url', 'real_url', 'status', 'reason', 'encoding', 'history', 'text', 'read', 'json', 'raw', 'content_type', 'charset', 'headers', 'cookies', 'request_info', 'version', 'release', 'raise_for_status']
 
@@ -342,7 +342,7 @@ class aio:
 				return_items.insert(0, None)
 
 		except:
-				return_items .insert(0, -3)
+				return_items.insert(0, -3)
 
 		finally:
 				if created_session:
@@ -655,38 +655,124 @@ class num:
 	def beautify(value: int | float, decimals: int = 2, precission: int = 20):
 		return num.shorten(float(num.decim_round(value, decimals, precission)), decimals)
 
-class web3_misc:
-	"""
-	Methos: _gas, _gasPrice, nonce
-	Declare web3_misc.web3 to be able to use them
+class Web3Misc:
+    """
+    A utility class for managing Ethereum-related tasks such as gas price, gas estimation, and nonce retrieval.
+    
+    Methods:
+        - start_gas_monitor(period: float | int = 10) -> None
+        - start_gas_price_monitor(tx: dict, period: float | int = 10) -> None
+        - start_nonce_monitor(address: str, period: float | int = 10) -> None
+        - get_nonce(address: str) -> int
+    
+    Properties:
+        - gas: The current gas price.
+        - gas_price: The estimated gas price for a transaction.
+        - nonce: The current nonce for an address.
+    
+    Attributes:
+        - web3: The Web3 instance to interact with the Ethereum network.
+    """
 
-	"""
+    def __init__(self, web3):
+        """
+        Initializes the Web3Misc instance with a Web3 instance.
 
-	web3 = None
-	gas = None
-	gasPrice = None
+        :param web3: The Web3 instance to interact with the Ethereum network.
+        :type web3: Web3
+        """
+        self._web3 = web3
+        self._gas: Optional[int] = None
+        self._gas_price: Optional[int] = None
+        self._nonce: Optional[int] = None
 
-	@staticmethod
-	def _gas(period: float | int = 10) -> None:
-		import time
-		global gas
+    @property
+    def web3(self):
+        """The Web3 instance to interact with the Ethereum network."""
+        return self._web3
 
-		while True:
-			web3_misc.gas = web3_misc.web3.eth.gas_price
-			time.sleep(period)
+    @web3.setter
+    def web3(self, value):
+        """Set the Web3 instance."""
+        self._web3 = value
 
-	@staticmethod
-	def _gasPrice(tx: dict, period: float | int = 10) -> None:
-		import time
-		global gasPrice
+    @property
+    def gas(self):
+        """The current gas price."""
+        return self._gas
 
-		while True:
-			web3_misc.gasPrice = web3_misc.web3.eth.estimate_gas(tx)
-			time.sleep(period)
+    @gas.setter
+    def gas(self, value):
+        """Set the current gas price."""
+        self._gas = value
 
-	@staticmethod
-	def nonce(address: str) -> int:
-		return web3_misc.web3.eth.get_transaction_count(address)
+    @property
+    def gas_price(self):
+        """The estimated gas price for a transaction."""
+        return self._gas_price
+
+    @gas_price.setter
+    def gas_price(self, value):
+        """Set the estimated gas price for a transaction."""
+        self._gas_price = value
+
+    @property
+    def nonce(self):
+        """The current nonce for an address."""
+        return self._nonce
+
+    @nonce.setter
+    def nonce(self, value):
+        """Set the current nonce for an address."""
+        self._nonce = value
+
+    def start_gas_monitor(self, period: Union[float, int] = 10) -> None:
+        """
+        Continuously updates the gas price at a specified interval.
+
+        :param period: The interval in seconds between updates.
+        :type period: float | int
+        """
+        while True:
+            self.gas = self.web3.eth.gas_price
+            time.sleep(period)
+
+    def start_gas_price_monitor(self, tx: dict, period: Union[float, int] = 10) -> None:
+        """
+        Continuously updates the estimated gas price for a transaction at a specified interval.
+
+        :param tx: The transaction dictionary.
+        :type tx: dict
+        :param period: The interval in seconds between updates.
+        :type period: float | int
+        """
+        while True:
+            self.gas_price = self.web3.eth.estimate_gas(tx)
+            time.sleep(period)
+
+    def start_nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
+        """
+        Continuously updates the nonce for a given address at a specified interval.
+
+        :param address: The Ethereum address to monitor.
+        :type address: str
+        :param period: The interval in seconds between updates.
+        :type period: float | int
+        """
+        while True:
+            self.nonce = self.web3.eth.get_transaction_count(address)
+            time.sleep(period)
+
+    def get_nonce(self, address: str) -> int:
+        """
+        Retrieves the current nonce for a given address.
+
+        :param address: The Ethereum address.
+        :type address: str
+        :return: The current nonce for the address.
+        :rtype: int
+        """
+        return self.web3.eth.get_transaction_count(address)
 
 # format_mc_versions() Helper function to determine if one version is the direct successor of another
 def is_direct_successor(v1, v2):
@@ -719,7 +805,7 @@ def is_direct_successor(v1, v2):
 
 def format_mc_versions(mc_vers):
 		"""
-		
+
 		Not yet works correct with snapshots, dev and pre-release builds
 		Isn't accurate when base changes (may think 1.20 goes after 1.19.1 if it's before)
 
