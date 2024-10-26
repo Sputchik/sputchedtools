@@ -73,7 +73,7 @@ class ProgressBar:
 						try:
 								item = next(self.iterator)
 								self.update()
-								return self._completed_tasks, item
+								return item # self._completed_tasks,
 						except StopIteration:
 								self.finish()
 								raise
