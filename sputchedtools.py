@@ -1,6 +1,5 @@
 from typing import Literal, Union, Optional
 from collections.abc import Iterator, Iterable
-import sys, time
 
 ReturnTypes = Literal['url', 'real_url', 'status', 'reason', 'encoding', 'history', 'text', 'read', 'json', 'raw', 'content_type', 'charset', 'headers', 'cookies', 'request_info', 'version', 'release', 'raise_for_status']
 
@@ -10,7 +9,7 @@ class Timer:
 
 	Code execution Timer, use 'with' keyword
 
-	Accepts:
+	Accepts (order doesn't matter from 0.16.2):
 		txt: str = '': text after main print message
 		decimals: int = 2: time difference precission
 
@@ -19,9 +18,15 @@ class Timer:
 	def __init__(self, txt = '', decimals = 2):
 		from time import perf_counter
 		self.time = perf_counter
-		self.txt = txt
-		self.decimals = decimals
-
+		
+		if isinstance(txt, (int)):
+			self.decimals = txt
+			self.txt = decimals
+		
+		else:
+			self.decimals = decimals
+			self.txt = txt
+		
 	def __enter__(self):
 		self.was = self.time()
 
@@ -46,9 +51,12 @@ class ProgressBar:
 
 				else: self.task_amount = task_amount
 
+				from sys import stdout
 				self.text = text
 				self._completed_tasks = 0
 				self.final_text = final_text
+				self.swrite = stdout.write
+				self.sflush = stdout.flush
 
 		@property
 		def task_amount(self):
@@ -87,13 +95,13 @@ class ProgressBar:
 
 		def _print_progress(self):
 				# Using '\r' to overwrite the line in the terminal
-				sys.stdout.write(f'\r{self.text} {self._completed_tasks}/{self._task_amount}')
-				sys.stdout.flush()
+				self.swrite(f'\r{self.text} {self._completed_tasks}/{self._task_amount}')
+				self.sflush()
 
 		def finish(self):
 				self.finish_message = f'\r{self.text} {self._completed_tasks}/{self._task_amount} {self.final_text}\n'
-				sys.stdout.write(self.finish_message)
-				sys.stdout.flush()
+				self.swrite(self.finish_message)
+				self.sflush()
 
 class AsyncProgressBar:
 		def __init__(self, text: str, task_amount: int = None, final_text: str = "Done", tasks=None):
@@ -116,18 +124,18 @@ class AsyncProgressBar:
 
 		def _print_progress(self):
 				if self.task_amount is not None:
-						sys.stdout.write(f'\r{self.text} {self._completed_tasks}/{self.task_amount}')
+						self.swrite(f'\r{self.text} {self._completed_tasks}/{self.task_amount}')
 				else:
-						sys.stdout.write(f'\r{self.text} {self._completed_tasks}')
-				sys.stdout.flush()
+						self.swrite(f'\r{self.text} {self._completed_tasks}')
+				self.sflush()
 
 		async def _finish(self):
 				if self.task_amount is not None:
 						self.finish_message = f'\r{self.text} {self._completed_tasks}/{self.task_amount} {self.final_text}\n'
 				else:
 						self.finish_message = f'\r{self.text} {self._completed_tasks} {self.final_text}\n'
-				sys.stdout.write(self.finish_message)
-				sys.stdout.flush()
+				self.swrite(self.finish_message)
+				self.sflush()
 				self._completed_tasks = 0
 
 		async def as_completed(self, tasks):
@@ -656,123 +664,126 @@ class num:
 		return num.shorten(float(num.decim_round(value, decimals, precission)), decimals)
 
 class Web3Misc:
-    """
-    A utility class for managing Ethereum-related tasks such as gas price, gas estimation, and nonce retrieval.
-    
-    Methods:
-        - start_gas_monitor(period: float | int = 10) -> None
-        - start_gas_price_monitor(tx: dict, period: float | int = 10) -> None
-        - start_nonce_monitor(address: str, period: float | int = 10) -> None
-        - get_nonce(address: str) -> int
-    
-    Properties:
-        - gas: The current gas price.
-        - gas_price: The estimated gas price for a transaction.
-        - nonce: The current nonce for an address.
-    
-    Attributes:
-        - web3: The Web3 instance to interact with the Ethereum network.
-    """
+		"""
+		A utility class for managing Ethereum-related tasks such as gas price, gas estimation, and nonce retrieval.
 
-    def __init__(self, web3):
-        """
-        Initializes the Web3Misc instance with a Web3 instance.
+		Methods:
+				- start_gas_monitor(period: float | int = 10) -> None
+				- start_gas_price_monitor(tx: dict, period: float | int = 10) -> None
+				- start_nonce_monitor(address: str, period: float | int = 10) -> None
+				- get_nonce(address: str) -> int
 
-        :param web3: The Web3 instance to interact with the Ethereum network.
-        :type web3: Web3
-        """
-        self._web3 = web3
-        self._gas: Optional[int] = None
-        self._gas_price: Optional[int] = None
-        self._nonce: Optional[int] = None
+		Properties:
+				- gas: The current gas price.
+				- gas_price: The estimated gas price for a transaction.
+				- nonce: The current nonce for an address.
 
-    @property
-    def web3(self):
-        """The Web3 instance to interact with the Ethereum network."""
-        return self._web3
+		Attributes:
+				- web3: The Web3 instance to interact with the Ethereum network.
+		"""
 
-    @web3.setter
-    def web3(self, value):
-        """Set the Web3 instance."""
-        self._web3 = value
+		def __init__(self, web3):
+				"""
+				Initializes the Web3Misc instance with a Web3 instance.
 
-    @property
-    def gas(self):
-        """The current gas price."""
-        return self._gas
+				:param web3: The Web3 instance to interact with the Ethereum network.
+				:type web3: Web3
+				"""
+				self._web3 = web3
+				self._gas: Optional[int] = None
+				self._gas_price: Optional[int] = None
+				self._nonce: Optional[int] = None
 
-    @gas.setter
-    def gas(self, value):
-        """Set the current gas price."""
-        self._gas = value
+				from time import sleep
+				self.sleep = sleep
 
-    @property
-    def gas_price(self):
-        """The estimated gas price for a transaction."""
-        return self._gas_price
+		@property
+		def web3(self):
+				"""The Web3 instance to interact with the Ethereum network."""
+				return self._web3
 
-    @gas_price.setter
-    def gas_price(self, value):
-        """Set the estimated gas price for a transaction."""
-        self._gas_price = value
+		@web3.setter
+		def web3(self, value):
+				"""Set the Web3 instance."""
+				self._web3 = value
 
-    @property
-    def nonce(self):
-        """The current nonce for an address."""
-        return self._nonce
+		@property
+		def gas(self):
+				"""The current gas price."""
+				return self._gas
 
-    @nonce.setter
-    def nonce(self, value):
-        """Set the current nonce for an address."""
-        self._nonce = value
+		@gas.setter
+		def gas(self, value):
+				"""Set the current gas price."""
+				self._gas = value
 
-    def start_gas_monitor(self, period: Union[float, int] = 10) -> None:
-        """
-        Continuously updates the gas price at a specified interval.
+		@property
+		def gas_price(self):
+				"""The estimated gas price for a transaction."""
+				return self._gas_price
 
-        :param period: The interval in seconds between updates.
-        :type period: float | int
-        """
-        while True:
-            self.gas = self.web3.eth.gas_price
-            time.sleep(period)
+		@gas_price.setter
+		def gas_price(self, value):
+				"""Set the estimated gas price for a transaction."""
+				self._gas_price = value
 
-    def start_gas_price_monitor(self, tx: dict, period: Union[float, int] = 10) -> None:
-        """
-        Continuously updates the estimated gas price for a transaction at a specified interval.
+		@property
+		def nonce(self):
+				"""The current nonce for an address."""
+				return self._nonce
 
-        :param tx: The transaction dictionary.
-        :type tx: dict
-        :param period: The interval in seconds between updates.
-        :type period: float | int
-        """
-        while True:
-            self.gas_price = self.web3.eth.estimate_gas(tx)
-            time.sleep(period)
+		@nonce.setter
+		def nonce(self, value):
+				"""Set the current nonce for an address."""
+				self._nonce = value
 
-    def start_nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
-        """
-        Continuously updates the nonce for a given address at a specified interval.
+		def start_gas_monitor(self, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+				"""
+				Continuously updates the gas price at a specified interval.
 
-        :param address: The Ethereum address to monitor.
-        :type address: str
-        :param period: The interval in seconds between updates.
-        :type period: float | int
-        """
-        while True:
-            self.nonce = self.web3.eth.get_transaction_count(address)
-            time.sleep(period)
+				:param period: The interval in seconds between updates.
+				:type period: float | int
+				"""
+				while True:
+						self.gas = self.web3.eth.gas_price * multiply_by
+						self.sleep(period)
 
-    def get_nonce(self, address: str) -> int:
-        """
-        Retrieves the current nonce for a given address.
+		def start_gas_price_monitor(self, tx: dict, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+				"""
+				Continuously updates the estimated gas price for a transaction at a specified interval.
 
-        :param address: The Ethereum address.
-        :type address: str
-        :return: The current nonce for the address.
-        :rtype: int
-        """
-        return self.web3.eth.get_transaction_count(address)
+				:param tx: The transaction dictionary.
+				:type tx: dict
+				:param period: The interval in seconds between updates.
+				:type period: float | int
+				"""
+				while True:
+						self.gas_price = self.web3.eth.estimate_gas(tx) * multiply_by
+						self.sleep(period)
+
+		def start_nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
+				"""
+				Continuously updates the nonce for a given address at a specified interval.
+
+				:param address: The Ethereum address to monitor.
+				:type address: str
+				:param period: The interval in seconds between updates.
+				:type period: float | int
+				"""
+				while True:
+						self.nonce = self.web3.eth.get_transaction_count(address)
+						self.sleep(period)
+
+		def get_nonce(self, address: str) -> int:
+				"""
+				Retrieves the current nonce for a given address.
+
+				:param address: The Ethereum address.
+				:type address: str
+				:return: The current nonce for the address.
+				:rtype: int
+				"""
+				return self.web3.eth.get_transaction_count(address)
 
 # format_mc_versions() Helper function to determine if one version is the direct successor of another
 def is_direct_successor(v1, v2):
