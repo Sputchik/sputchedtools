@@ -18,15 +18,15 @@ class Timer:
 	def __init__(self, txt = '', decimals = 2):
 		from time import perf_counter
 		self.time = perf_counter
-		
+
 		if isinstance(txt, (int)):
 			self.decimals = txt
 			self.txt = decimals
-		
+
 		else:
 			self.decimals = decimals
 			self.txt = txt
-		
+
 	def __enter__(self):
 		self.was = self.time()
 
@@ -737,20 +737,9 @@ class Web3Misc:
 				"""Set the current nonce for an address."""
 				self._nonce = value
 
-		def start_gas_monitor(self, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+		def start_gas_monitor(self, tx: dict, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
 				"""
-				Continuously updates the gas price at a specified interval.
-
-				:param period: The interval in seconds between updates.
-				:type period: float | int
-				"""
-				while True:
-						self.gas = self.web3.eth.gas_price * multiply_by
-						self.sleep(period)
-
-		def start_gas_price_monitor(self, tx: dict, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
-				"""
-				Continuously updates the estimated gas price for a transaction at a specified interval.
+				Continuously updates the estimated required gas for a transaction at a specified interval.
 
 				:param tx: The transaction dictionary.
 				:type tx: dict
@@ -758,7 +747,18 @@ class Web3Misc:
 				:type period: float | int
 				"""
 				while True:
-						self.gas_price = self.web3.eth.estimate_gas(tx) * multiply_by
+						self.gas = self.web3.eth.estimate_gas(tx) * multiply_by
+						self.sleep(period)
+
+		def start_gas_price_monitor(self, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+				"""
+				Continuously updates the gas price at a specified interval.
+
+				:param period: The interval in seconds between updates.
+				:type period: float | int
+				"""
+				while True:
+						self.gas_price = self.web3.eth.gas_price * multiply_by
 						self.sleep(period)
 
 		def start_nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
