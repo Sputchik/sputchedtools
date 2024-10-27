@@ -106,7 +106,12 @@ class ProgressBar:
 class AsyncProgressBar:
 		def __init__(self, text: str, task_amount: int = None, final_text: str = "Done", tasks=None):
 				import asyncio
+				from sys import stdout
+
 				self.asyncio = asyncio
+				self.swrite = stdout.write
+				self.sflush = stdout.flush
+
 				self.text = text
 				self.task_amount = task_amount
 				self.final_text = final_text
