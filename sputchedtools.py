@@ -742,7 +742,7 @@ class Web3Misc:
 				"""Set the current nonce for an address."""
 				self._nonce = value
 
-		def start_gas_monitor(self, tx: dict, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+		def gas_monitor(self, tx: dict, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
 				"""
 				Continuously updates the estimated required gas for a transaction at a specified interval.
 
@@ -755,7 +755,7 @@ class Web3Misc:
 						self.gas = self.web3.eth.estimate_gas(tx) * multiply_by
 						self.sleep(period)
 
-		def start_gas_price_monitor(self, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+		def gas_price_monitor(self, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
 				"""
 				Continuously updates the gas price at a specified interval.
 
@@ -766,7 +766,7 @@ class Web3Misc:
 						self.gas_price = self.web3.eth.gas_price * multiply_by
 						self.sleep(period)
 
-		def start_nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
+		def nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
 				"""
 				Continuously updates the nonce for a given address at a specified interval.
 

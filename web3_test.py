@@ -7,7 +7,7 @@ from sputchedtools import Web3Misc
 
 misc = Web3Misc(w3)
 
-Thread(target = misc.start_gas_monitor).start()
+Thread(target = misc.gas_price_monitor).start()
 import time
 while True:
 	print(misc.gas)
