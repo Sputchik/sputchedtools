@@ -21,7 +21,7 @@ class Timer:
 
 		if isinstance(txt, (int)):
 			self.decimals = txt
-			self.txt = decimals
+			self.txt = decimals if isinstance(decimals, str) else ''
 
 		else:
 			self.decimals = decimals
