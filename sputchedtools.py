@@ -753,17 +753,20 @@ class Web3Misc:
 				"""Set the current nonce for an address."""
 				self._nonce = value
 
-		def gas_monitor(self, tx: dict, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
+		def gas_monitor(self, token_contract, sender: str, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
 				"""
 				Continuously updates the estimated required gas for a transaction at a specified interval.
 
-				:param tx: The transaction dictionary.
-				:type tx: dict
+				:param token_contact: Token contract with 'transfer' function
+				:param sender: Sender address (checksumed, make sure)
+				:type sender: str
 				:param period: The interval in seconds between updates.
 				:type period: float | int
 				"""
+				dead = '0x000000000000000000000000000000000000dEaD'
+
 				while True:
-						self.gas = self.web3.eth.estimate_gas(tx) * multiply_by
+						self._gas = round(token_contract.functions.transfer(dead, 0).estimate_gas({'from': sender}) * multiply_by)
 						self.sleep(period)
 
 		def gas_price_monitor(self, period: Union[float, int] = 10, multiply_by: float = 1.0) -> None:
@@ -774,7 +777,7 @@ class Web3Misc:
 				:type period: float | int
 				"""
 				while True:
-						self.gas_price = self.web3.eth.gas_price * multiply_by
+						self._gas_price = round(self.web3.eth.gas_price * multiply_by)
 						self.sleep(period)
 
 		def nonce_monitor(self, address: str, period: Union[float, int] = 10) -> None:
@@ -787,7 +790,7 @@ class Web3Misc:
 				:type period: float | int
 				"""
 				while True:
-						self.nonce = self.web3.eth.get_transaction_count(address)
+						self._nonce = self.web3.eth.get_transaction_count(address)
 						self.sleep(period)
 
 		def get_nonce(self, address: str) -> int:
