@@ -47,17 +47,29 @@ class ProgressBar:
 				if task_amount is None:
 						if not hasattr(iterator, '__len__'):
 								raise AttributeError(f"You did not provide task amount for Iterator or object with no __len__ attribute\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
-						self.task_amount = iterator.__len__()
+						self._task_amount = iterator.__len__()
 
-				else: self.task_amount = task_amount
+				else: self._task_amount = task_amount
 
 				from sys import stdout
-				self.text = text
+				self._text = text
 				self._completed_tasks = 0
 				self.final_text = final_text
 				self.swrite = stdout.write
 				self.sflush = stdout.flush
+		
+		@property
+		def text(self):
+				"""Get the overall task amount."""
+				return self._text
 
+		@text.setter
+		def text(self, value: str):
+				"""Safely change bar text."""
+				val_len = len(value)
+				text_len = len(self._text)
+				self._text = value + ' ' * (text_len - val_len if text_len > val_len else 0)
+		
 		@property
 		def task_amount(self):
 				"""Get the overall task amount."""
@@ -77,34 +89,29 @@ class ProgressBar:
 				return self
 
 		def __next__(self):
-				#if self._completed_tasks < self._task_amount:
-						try:
-								item = next(self.iterator)
-								self.update()
-								return item # self._completed_tasks,
-						except StopIteration:
-								self.finish()
-								raise
-				#else:
-				#		self.finish()
-				#		raise StopIteration
+				try:
+						item = next(self.iterator)
+						self.update()
+						return item # self._completed_tasks,
+				except StopIteration:
+						self.finish()
+						raise
 
 		def update(self, increment: int = 1):
 				self._completed_tasks += increment
 				self._print_progress()
 
 		def _print_progress(self):
-				# Using '\r' to overwrite the line in the terminal
-				self.swrite(f'\r{self.text} {self._completed_tasks}/{self._task_amount}')
+				self.swrite(f'\r{self._text} {self._completed_tasks}/{self._task_amount}')
 				self.sflush()
 
 		def finish(self):
-				self.finish_message = f'\r{self.text} {self._completed_tasks}/{self._task_amount} {self.final_text}\n'
+				self.finish_message = f'\r{self._text} {self._completed_tasks}/{self._task_amount} {self.final_text}\n'
 				self.swrite(self.finish_message)
 				self.sflush()
 
 class AsyncProgressBar:
-		def __init__(self, text: str, task_amount: int = None, final_text: str = "Done", tasks=None):
+		def __init__(self, text: str, task_amount: int = None, final_text: str = "Done", tasks = None):
 				import asyncio
 				from sys import stdout
 
@@ -112,8 +119,15 @@ class AsyncProgressBar:
 				self.swrite = stdout.write
 				self.sflush = stdout.flush
 
+				if task_amount is None and tasks:
+					if not hasattr(tasks, '__len__'):
+						raise AttributeError(f"You did not provide task amount for Async Iterator\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+					else:
+						self.task_amount = tasks.__len__()
+				
+				else: self.task_amount = task_amount
+				
 				self.text = text
-				self.task_amount = task_amount
 				self.final_text = final_text
 				self._completed_tasks = 0
 
@@ -128,10 +142,7 @@ class AsyncProgressBar:
 				self._print_progress()
 
 		def _print_progress(self):
-				if self.task_amount is not None:
-						self.swrite(f'\r{self.text} {self._completed_tasks}/{self.task_amount}')
-				else:
-						self.swrite(f'\r{self.text} {self._completed_tasks}')
+				self.swrite(f'\r{self.text} {self._completed_tasks}/{self.task_amount}')
 				self.sflush()
 
 		async def _finish(self):
