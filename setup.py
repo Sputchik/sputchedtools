@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
 	name = 'sputchedtools',
-	version = '0.16.10',
+	version = '0.18.0',
 	packages = find_packages(),
 	py_modules = ['sputchedtools'],
 	install_requires = [
@@ -13,5 +13,5 @@ setup(
 	author = 'Sputchik',
 	author_email = 'sputchik@gmail.com',
 	url = 'https://github.com/Sputchik/sputchedtools',
-	python_requires = '>=3.8'
+	python_requires = '>=3.8',
 )

@@ -3,10 +3,10 @@ import asyncio
 
 with Timer('Test completed?', 4):
 	enhance_loop()
-
-	response = asyncio.run(aio.request('https://imhentai.xxx', toreturn = 'ok+url+status', handle_status=True))
+	
+	response = asyncio.run(aio.request('https://duckduckgo.com', toreturn = 'ok+url+status', handle_status=True))
 	for data in ProgressBar(response):
-		...
+		print(data)
 
 	with Timer('calcs', 4):
 		print(num.shorten(4309.389, 2), num.unshorten('56b', True), num.decim_round(2.124992567, -1))
