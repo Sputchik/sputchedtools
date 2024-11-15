@@ -475,7 +475,8 @@ class num:
 
 	"""
 
-	suffixes: list[str] = ['', 'K', 'M', 'B', 'T', 1000.0]
+	suffixes: list[str] = ['', 'K', 'M', 'B', 'T', 1000]
+	fileSize_suffixes: list[str] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
 	multipliers: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 	decim_map: dict[callable, int] = {
 		lambda x: x > 1000: 0,
@@ -486,7 +487,7 @@ class num:
 	}
 
 	@staticmethod
-	def shorten(value: int | float, decimals: int = 2) -> str:
+	def shorten(value: int | float, decimals: int = 2, suffixes = None) -> str:
 		"""
 		Accepts:
 			value: int - big value
@@ -499,11 +500,12 @@ class num:
 
 		sign = '-' if value < 0 else ''
 		value = abs(value)
-		magnitude = num.suffixes[-1]
+		suffixes = suffixes or num.suffixes
+		magnitude = suffixes[-1]
 
-		for i, suffix in enumerate(num.suffixes[:-1]):
+		for i, suffix in enumerate(suffixes[:-1]):
 			unit = magnitude ** i
-			if value < unit * magnitude or i == len(num.suffixes) - 1:
+			if value < unit * magnitude or i == len(suffixes) - 1:
 				value /= unit
 				formatted = num.decim_round(value, decimals)
 				return f"{sign}{formatted}{suffix}" # .rstrip('0').rstrip('.')
