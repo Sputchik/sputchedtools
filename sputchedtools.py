@@ -193,68 +193,6 @@ class AsyncProgressBar:
 			yield task
 		await self._finish()
 
-class prints:
-
-	@staticmethod
-	def dashed(text: str, start_newlines: int = 1, end_newlines: int = 1, width: int = 44, char = '-') -> None:
-		print('\n' * start_newlines + text.center(width, char) + '\n' * end_newlines)
-
-	@staticmethod
-	def tabled(data, headers, max_str_len_per_row=40, separate_rows=False):
-
-		filtered_data = [row for row in data if len(row) == len(headers)]
-
-		column_widths = {header: len(header) for header in headers}
-
-		for row in filtered_data:
-			for header, value in zip(headers, row):
-
-				str_value = str(value)
-
-				if len(str_value) > max_str_len_per_row:
-					column_widths[header] = max(column_widths[header], max_str_len_per_row)
-
-				else:
-					column_widths[header] = max(column_widths[header], len(str_value))
-
-		separator = '+-' + '-+-'.join('-' * column_widths[header] for header in headers) + '-+'
-
-		header_row = '| ' + ' | '.join(header.ljust(column_widths[header]) for header in headers) + ' |'
-
-		print(separator)
-		print(header_row)
-		print(separator)
-
-		for row_index, row in enumerate(filtered_data):
-			extended_rows = []
-
-			for header, value in zip(headers, row):
-
-				str_value = str(value)
-
-				if len(str_value) > max_str_len_per_row:
-					chunks = [str_value[i:i+max_str_len_per_row] for i in range(0, len(str_value), max_str_len_per_row)]
-					extended_rows.append(chunks)
-
-				else:
-					extended_rows.append([str_value])
-
-			max_lines = max(len(chunks) for chunks in extended_rows)
-
-			for line_index in range(max_lines):
-				row_str = '| ' + ' | '.join(
-				(extended_rows[i][line_index] if line_index < len(extended_rows[i]) else '').ljust(column_widths[header])
-				for i, header in enumerate(headers)
-				) + ' |'
-
-				print(row_str)
-
-			if separate_rows and row_index < len(filtered_data) - 1:
-
-				print(separator)
-
-		print(separator)
-
 class aio:
 	"""
 	Methods:
@@ -288,10 +226,6 @@ class aio:
 		'release': lambda response: response.release(),
 		'raise_for_status': lambda response: response.raise_for_status(),
 	}
-	response_status_map = {
-		403: -2,
-		521: -1,
-	}
 
 	@staticmethod
 	async def _request(
@@ -299,7 +233,6 @@ class aio:
 		url: str,
 		toreturn: ReturnTypes = 'text',
 		session = None,
-		handle_status = True,
 		**kwargs,
 
 	):
@@ -314,7 +247,6 @@ class aio:
 			Kwargs:
 				toreturn: ReturnTypes or any other ClientResponse full-path (for eval) attribute
 				session
-				handle_status: bool - Wether to insert corresponding status id to first index. Ensures compatibilty with old scripts
 				any other session.get() argument
 
 		Returns:
@@ -339,10 +271,6 @@ class aio:
 		try:
 			async with ses.request(method, url, **kwargs) as response:
 
-				if handle_status and not response.ok:
-					status = aio.response_status_map.get(response.status, None)
-					return_items.append(status)
-
 				for item in toreturn.split('+'):
 					value = aio.data_map.get(item)
 
@@ -366,11 +294,14 @@ class aio:
 			return_items.insert(0, 0)
 
 		except asyncio.CancelledError:
-			return_items.insert(0, None)
-
+			return
+		
 		except:
-			return_items.insert(0, -3)
+			len_tr = len(toreturn.split('+'))
 
+			while len(return_items) != len_tr:
+				return_items.append(None)
+			
 		finally:
 			if not session: await ses.close()
 			return return_items
@@ -380,21 +311,19 @@ class aio:
 		url: str,
 		toreturn: ReturnTypes = 'text',
 		session = None,
-		handle_status: bool = True,
 		**kwargs
 	):
-		return await aio._request('GET', url, toreturn, session, handle_status, **kwargs)
+		return await aio._request('GET', url, toreturn, session, **kwargs)
 
 	@staticmethod
 	async def post(
 		url: str,
 		toreturn: ReturnTypes = 'text',
 		session = None,
-		handle_status: bool = True,
 		**kwargs
 	):
 
-		return await aio._request('POST', url, toreturn, session, handle_status, **kwargs)
+		return await aio._request('POST', url, toreturn, session, **kwargs)
 
 	@staticmethod
 	async def open(
@@ -405,7 +334,7 @@ class aio:
 		**kwargs
 	):
 		"""
-		Asynchronously read from or write to a file using aiofile.
+		Asynchronously read from or write to a file using aiofiles.
 
 		Args:
 			file (str): File path
@@ -477,6 +406,7 @@ class num:
 
 	suffixes: list[str] = ['', 'K', 'M', 'B', 'T', 1000]
 	fileSize_suffixes: list[str] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
+
 	multipliers: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 	decim_map: dict[callable, int] = {
 		lambda x: x > 1000: 0,
@@ -644,42 +574,34 @@ class Web3Misc:
 
 	@property
 	def web3(self):
-		"""The Web3 instance to interact with the Ethereum network."""
 		return self._web3
 
 	@web3.setter
 	def web3(self, value):
-		"""Set the Web3 instance."""
 		self._web3 = value
 
 	@property
 	def gas(self):
-		"""The current gas price."""
 		return self._gas
 
 	@gas.setter
 	def gas(self, value):
-		"""Set the current gas price."""
 		self._gas = value
 
 	@property
 	def gas_price(self):
-		"""The estimated gas price for a transaction."""
 		return self._gas_price
 
 	@gas_price.setter
 	def gas_price(self, value):
-		"""Set the estimated gas price for a transaction."""
 		self._gas_price = value
 
 	@property
 	def nonce(self):
-		"""The current nonce for an address."""
 		return self._nonce
 
 	@nonce.setter
 	def nonce(self, value):
-		"""Set the current nonce for an address."""
 		self._nonce = value
 
 	def gas_monitor(self, token_contract, sender: str, period: float | int = 10, multiply_by: float = 1.0) -> None:
@@ -733,66 +655,87 @@ class Web3Misc:
 		"""
 		return self.web3.eth.get_transaction_count(address)
 
-# format_mc_versions() Helper function to determine if one version is the direct successor of another
-def is_direct_successor(v1, v2):
-	if (v1.startswith('1.') and not v2.startswith('1.')) or (not v1.startswith('1.') and v2.startswith('1.')) or (not v1.startswith('1.') and not v2.startswith('1.')) or '-pre' in v1.lower() or '-rc' in v1.lower() or '-pre' in v2.lower() or '-rc' in v2.lower():
-		return True
+# -------------MINECRAFT-VERSIONING-LOL-------------
 
-	try:
-		parts1 = [int(part) for part in v1.split('.')]
-		parts2 = [int(part) for part in v2.split('.')]
+class MC_VersionList:
+	def __init__(self, versions, indices) -> None:
+		self.length = len(versions)
 
-		if len(parts1) == 2:
-			parts1.append(0)
-		if len(parts2) == 2:
-			parts2.append(0)
+		if self.length != len(indices):
+			raise ValueError
+		
+		self.versions = versions
+		self.indices = indices
+		self.map = {version: index for version, index in zip(versions, indices)}
+	
+	@property
+	def get(self): return self.versions
 
-		if parts1[0] == parts2[0]:
+class MC_Versions:
+	def __init__(self) -> None:
+		import asyncio
+		self.manifest_url = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
 
-			if parts1[1] == parts2[1]:
-				return parts1[2] + 1 == parts2[2]
-			elif parts1[1] + 1 == parts2[1]:
-				return parts2[2] == 0
+		try:
+			loop = asyncio.get_running_loop()
+		except RuntimeError:
+			enhance_loop()
+			loop = asyncio.new_event_loop()
+		
+		loop.run_until_complete(self.fetch_version_manifest())
+	
+	def sort(self, mc_vers: list[str]) -> list[str]:
+		filtered_vers = set()
 
-		return False
+		for ver in mc_vers:
+			if not ver: continue
 
-	except ValueError:
-		return False
+			try:
+				filtered_vers.add(self.release_versions.index(ver))
+			except ValueError:
+				continue
+		
+		sorted_indices = sorted(filtered_vers)
 
-def format_mc_versions(mc_vers):
-	if not mc_vers:
-		return ''
+		return MC_VersionList([self.release_versions[index] for index in sorted_indices], sorted_indices)
+	
+	def get_range(self, mc_vers: MC_VersionList) -> str:
+		version_range = ''
+		start = mc_vers.versions[0]  # Start of a potential range
+		end = start  # End of the current range
 
-	# Initialize the message and the starting point for a range of consecutive versions
-	msg = ''
-	start_ver = None
-	last_ver = None
-
-	for i in range(len(mc_vers)):
-		ver = mc_vers[i]
-
-		# Check if current version follows the last version directly
-		if last_ver is not None and is_direct_successor(last_ver, ver):
-			last_ver = ver
-			continue
-
-		# If not, handle the end of a version range and reset
-		if last_ver is not None:
-			if start_ver != last_ver:
-				msg += f'{start_ver}-{last_ver}, '
+		for i in range(1, mc_vers.length):
+			# Check if the current index is a successor of the previous one
+			if mc_vers.indices[i] == mc_vers.indices[i - 1] + 1:
+				end = mc_vers.versions[i]  # Extend the range
 			else:
-				msg += f'{last_ver}, '
+				# Add the completed range or single version to the result
+				if start == end:
+					version_range += f'{start}, '
+				else:
+					version_range += f'{start} - {end}, '
+				start = mc_vers.versions[i]  # Start a new range
+				end = start
 
-		# Set new start and last versions
-		start_ver = ver
-		last_ver = ver
-
-	# Add the last processed version or range
-	if last_ver is not None:
-
-		if start_ver != last_ver:
-			msg += f'{start_ver}-{last_ver}'
+		# Add the final range or single version
+		if start == end:
+			version_range += start
 		else:
-			msg += f'{last_ver}'
+			version_range += f'{start} - {end}'
 
-	return msg.strip(', ')
+		return version_range
+	
+	async def fetch_version_manifest(self):
+		response = await aio.request(self.manifest_url, toreturn = 'json+status')
+		manifest_data, status = response
+
+		if status != 200 or not isinstance(manifest_data, dict):
+			raise TypeError(f"Couldn't fetch minecraft versions manifest from `{self.manifest_url}`\nStatus: {status}")
+		
+		self.release_versions: list[str] = []
+
+		for version in manifest_data['versions']:
+			if version['type'] == 'release':
+				self.release_versions.append(version['id'])
+		
+		self.release_versions.reverse() # Ascending
