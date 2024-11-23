@@ -295,13 +295,13 @@ class aio:
 
 		except asyncio.CancelledError:
 			return
-		
+
 		except:
 			len_tr = len(toreturn.split('+'))
 
 			while len(return_items) != len_tr:
 				return_items.append(None)
-			
+
 		finally:
 			if not session: await ses.close()
 			return return_items
@@ -663,11 +663,11 @@ class MC_VersionList:
 
 		if self.length != len(indices):
 			raise ValueError
-		
+
 		self.versions = versions
 		self.indices = indices
 		self.map = {version: index for version, index in zip(versions, indices)}
-	
+
 	@property
 	def get(self): return self.versions
 
@@ -681,9 +681,9 @@ class MC_Versions:
 		except RuntimeError:
 			enhance_loop()
 			loop = asyncio.new_event_loop()
-		
+
 		loop.run_until_complete(self.fetch_version_manifest())
-	
+
 	def sort(self, mc_vers: list[str]) -> list[str]:
 		filtered_vers = set()
 
@@ -694,11 +694,11 @@ class MC_Versions:
 				filtered_vers.add(self.release_versions.index(ver))
 			except ValueError:
 				continue
-		
+
 		sorted_indices = sorted(filtered_vers)
 
 		return MC_VersionList([self.release_versions[index] for index in sorted_indices], sorted_indices)
-	
+
 	def get_range(self, mc_vers: MC_VersionList) -> str:
 		version_range = ''
 		start = mc_vers.versions[0]  # Start of a potential range
@@ -724,18 +724,27 @@ class MC_Versions:
 			version_range += f'{start} - {end}'
 
 		return version_range
-	
+
 	async def fetch_version_manifest(self):
 		response = await aio.request(self.manifest_url, toreturn = 'json+status')
 		manifest_data, status = response
 
 		if status != 200 or not isinstance(manifest_data, dict):
 			raise TypeError(f"Couldn't fetch minecraft versions manifest from `{self.manifest_url}`\nStatus: {status}")
-		
+
 		self.release_versions: list[str] = []
 
 		for version in manifest_data['versions']:
 			if version['type'] == 'release':
 				self.release_versions.append(version['id'])
-		
+
 		self.release_versions.reverse() # Ascending
+
+	def latest(self):
+		return self.release_versions[-1]
+
+	def is_version(self, version):
+		try:
+			return bool(self.release_versions.index(version))
+		except ValueError:
+			return False
