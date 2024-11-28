@@ -668,9 +668,6 @@ class MC_VersionList:
 		self.indices = indices
 		self.map = {version: index for version, index in zip(versions, indices)}
 
-	@property
-	def get(self): return self.versions
-
 class MC_Versions:
 	def __init__(self) -> None:
 		import asyncio
@@ -740,11 +737,13 @@ class MC_Versions:
 
 		self.release_versions.reverse() # Ascending
 
+	@property
 	def latest(self):
 		return self.release_versions[-1]
 
 	def is_version(self, version):
 		try:
-			return bool(self.release_versions.index(version))
+			self.release_versions.index(version)
+			return True
 		except ValueError:
 			return False
