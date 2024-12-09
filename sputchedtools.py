@@ -634,9 +634,6 @@ class MC_VersionList:
 		self.indices = indices
 		self.map = {version: index for version, index in zip(versions, indices)}
 
-	@property
-	def get(self): return self.versions
-
 class MC_Versions:
 	def __init__(self) -> None:
 		import asyncio
