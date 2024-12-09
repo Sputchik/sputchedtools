@@ -244,13 +244,13 @@ class aio:
 		"""
 
 		import aiohttp, asyncio, inspect
-		
+
 		return_items = []
 		ses = session or aiohttp.ClientSession()
-		
+
 		if isinstance(toreturn, str):
 			toreturn = toreturn.split('+') # Previous
-		
+
 		try:
 			async with ses.request(method, url, **kwargs) as response:
 
@@ -258,14 +258,14 @@ class aio:
 
 					try:
 						result = eval(f'response.{item}')
-						
+
 						if inspect.isfunction(result):
 							result = result()
 						elif inspect.iscoroutinefunction(result):
 							result = await result()
 						elif inspect.iscoroutine(result):
 							result = await result
-					
+
 					except:
 						result = None
 
@@ -276,7 +276,7 @@ class aio:
 
 		except asyncio.CancelledError:
 			return
-		
+
 		finally:
 			if not session: await ses.close()
 			return return_items
@@ -473,13 +473,13 @@ class num:
 
 			for decim_amount, min_num in enumerate(decims):
 				if absvalue < min_num: continue
-				
+
 				elif round_if_num_gt_1:
 					return str(round(value, None or decim_amount))
-				
+
 				decimals = decim_amount
 				break
-		
+
 		if round_if_num_gt_1:
 			return str(round(value, None or decimals))
 
