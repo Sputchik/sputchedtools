@@ -1,7 +1,7 @@
 from typing import Literal
 from collections.abc import Iterator, Iterable
 
-ReturnTypes = Literal['url', 'real_url', 'status', 'reason', 'encoding', 'history', 'text', 'read', 'json', 'raw', 'content_type', 'charset', 'headers', 'cookies', 'request_info', 'version', 'release', 'raise_for_status']
+ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 
 class Timer:
 
@@ -15,24 +15,27 @@ class Timer:
 
 	"""
 
-	def __init__(self, txt = '', decimals = 2):
+	def __init__(self, txt = '', echo = True):
 		from time import perf_counter
 		self.time = perf_counter
+		self.echo = echo
 
-		if isinstance(txt, (int)):
-			self.decimals = txt
-			self.txt = decimals if isinstance(decimals, str) else ''
+		if isinstance(txt, bool):
+			self.echo = txt
+			self.txt = echo if isinstance(echo, str) else ''
 
 		else:
-			self.decimals = decimals
 			self.txt = txt
+			self.echo = echo
 
 	def __enter__(self):
 		self.was = self.time()
+		return self
 
-	def __exit__(self, f, u, c):
-		self.diff = format((self.time() - self.was), f'.{self.decimals}f')
-		print(f'\nTaken time: {self.diff}s {self.txt}')
+	def __exit__(self, *args):
+		self.diff = self.time() - self.was
+		formatted = num.decim_round(self.diff, -1)
+		if self.echo: print(f'\nTaken time: {formatted}s {self.txt}')
 
 class ProgressBar:
 	def __init__(
@@ -203,35 +206,11 @@ class aio:
 
 	"""
 
-	data_map = {
-		'url': lambda response: response.url,
-		'real_url': lambda response: response.real_url,
-		'status': lambda response: response.status,
-		'reason': lambda response: response.reason,
-		'encoding': lambda response: response.get_encoding(),
-		'history': lambda response: response.history,
-
-		'text': lambda response: response.text(),
-		'read': lambda response: response.read(),
-		'json': lambda response: response.json(),
-		'raw': lambda response: response.content.read(),
-
-		'content_type': lambda response: response.content_type,
-		'charset': lambda response: response.charset,
-		'headers': lambda response: response.headers,
-		'cookies': lambda response: response.cookies,
-
-		'request_info': lambda response: response.request_info,
-		'version': lambda response: response.version,
-		'release': lambda response: response.release(),
-		'raise_for_status': lambda response: response.raise_for_status(),
-	}
-
 	@staticmethod
 	async def _request(
 		method: callable,
 		url: str,
-		toreturn: ReturnTypes = 'text',
+		toreturn: ReturnTypes = ('text'),
 		session = None,
 		**kwargs,
 
@@ -264,27 +243,29 @@ class aio:
 
 		"""
 
-		import aiohttp, asyncio
+		import aiohttp, asyncio, inspect
+		
 		return_items = []
 		ses = session or aiohttp.ClientSession()
-
+		
+		if isinstance(toreturn, str):
+			toreturn = toreturn.split('+') # Previous
+		
 		try:
 			async with ses.request(method, url, **kwargs) as response:
 
-				for item in toreturn.split('+'):
-					value = aio.data_map.get(item)
+				for item in toreturn:
 
 					try:
-						if value is None:
-							result = eval(f'response.{item}')
-							if callable(result):
-								result = result()
-							elif asyncio.iscoroutinefunction(result):
-								result = await result()
-						else:
-							result = value(response)
-							if asyncio.iscoroutine(result):
-								result = await result
+						result = eval(f'response.{item}')
+						
+						if inspect.isfunction(result):
+							result = result()
+						elif inspect.iscoroutinefunction(result):
+							result = await result()
+						elif inspect.iscoroutine(result):
+							result = await result
+					
 					except:
 						result = None
 
@@ -295,13 +276,7 @@ class aio:
 
 		except asyncio.CancelledError:
 			return
-
-		except:
-			len_tr = len(toreturn.split('+'))
-
-			while len(return_items) != len_tr:
-				return_items.append(None)
-
+		
 		finally:
 			if not session: await ses.close()
 			return return_items
@@ -309,7 +284,7 @@ class aio:
 	@staticmethod
 	async def request(
 		url: str,
-		toreturn: ReturnTypes = 'text',
+		toreturn: ReturnTypes = ('text'),
 		session = None,
 		**kwargs
 	):
@@ -318,7 +293,7 @@ class aio:
 	@staticmethod
 	async def post(
 		url: str,
-		toreturn: ReturnTypes = 'text',
+		toreturn: ReturnTypes = ('text'),
 		session = None,
 		**kwargs
 	):
@@ -404,17 +379,11 @@ class num:
 
 	"""
 
-	suffixes: list[str] = ['', 'K', 'M', 'B', 'T', 1000]
-	fileSize_suffixes: list[str] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
+	suffixes = ['', 'K', 'M', 'B', 'T', 1000]
+	fileSize_suffixes = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
 
 	multipliers: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
-	decim_map: dict[callable, int] = {
-		lambda x: x > 1000: 0,
-		lambda x: x > 100: 1,
-		lambda x: x > 10: 2,
-		lambda x: x > 5: 3,
-		lambda x: True: 4
-	}
+	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 
 	@staticmethod
 	def shorten(value: int | float, decimals: int = 2, suffixes = None) -> str:
@@ -428,20 +397,19 @@ class num:
 
 		"""
 
-		sign = '-' if value < 0 else ''
-		value = abs(value)
+		absvalue = abs(value)
 		suffixes = suffixes or num.suffixes
 		magnitude = suffixes[-1]
 
 		for i, suffix in enumerate(suffixes[:-1]):
 			unit = magnitude ** i
-			if value < unit * magnitude or i == len(suffixes) - 1:
+			if absvalue < unit * magnitude or i == len(suffixes) - 1:
 				value /= unit
-				formatted = num.decim_round(value, decimals)
-				return f"{sign}{formatted}{suffix}" # .rstrip('0').rstrip('.')
+				formatted = num.decim_round(value, decimals, decims = [100, 10, 1])
+				return f"{formatted}{suffix}"
 
 	@staticmethod
-	def unshorten(value: str, round: bool = False, decimals: int = 2) -> float | int:
+	def unshorten(value: str, round: bool = True, decimals: int = 2) -> float | int:
 		"""
 		Accepts:
 			value: str: int-like value with shortener at the end: 'k', 'm', 'b', 't'
@@ -457,17 +425,17 @@ class num:
 		"""
 
 		mp = value[-1].lower()
-		digit = value[:-1]
+		number = value[:-1]
 
 		try:
-			digit = float(digit)
+			number = float(number)
 			mp = num.multipliers[mp]
 
-			if round is True:
-				unshortened = num.decim_round(digit * mp, decimals)
+			if round:
+				unshortened = num.decim_round(number * mp, decimals)
 
 			else:
-				unshortened = digit * mp
+				unshortened = number * mp
 
 			return unshortened
 
@@ -475,7 +443,7 @@ class num:
 			return value
 
 	@staticmethod
-	def decim_round(value: float, decimals: int = 2, round_with_numbers_higher_1: bool = True, precission: int = 20) -> str:
+	def decim_round(value: float, decimals: int = 2, round_if_num_gt_1: bool = True, precission: int = 20, decims: list[int] = None) -> str:
 		"""
 		Accepts:
 			value: float: usually with medium-big decimal length
@@ -492,33 +460,31 @@ class num:
 
 		"""
 
+		if isinstance(value, int): return value
 		str_val = format(value, f'.{precission}f')
 
-		integer = str_val.split('.')[0]
-		decim = str_val.split('.')[1]
+		integer, decim = str_val.split('.')
+		round_if_num_gt_1 = abs(value) > 1 and round_if_num_gt_1
 
 		if decimals == -1:
-			for condition, decim_amount in num.decim_map.items():
-				if condition(abs(value)):
+			absvalue = abs(value)
+			decims = decims or num.decims
+			decimals = len(decims)
 
-					if decim_amount != 4:
-
-						if round_with_numbers_higher_1:
-							return str(round(value, decim_amount if decim_amount != 0 else None))
-
-						else:
-							decimals = decim_amount
-							break
-
-					else:
-						decimals = 4
-						break
+			for decim_amount, min_num in enumerate(decims):
+				if absvalue < min_num: continue
+				
+				elif round_if_num_gt_1:
+					return str(round(value, None or decim_amount))
+				
+				decimals = decim_amount
+				break
+		
+		if round_if_num_gt_1:
+			return str(round(value, None or decimals))
 
 		for i in range(len(decim)):
 			if decim[i] != '0': break
-
-		if integer != '0' and round_with_numbers_higher_1:
-			return str(round(value, decimals if decimals != 0 else None))
 
 		decim = decim[i:i + decimals + 2].rstrip('0')
 
@@ -677,10 +643,11 @@ class MC_Versions:
 		self.manifest_url = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
 
 		try:
-			loop = asyncio.get_running_loop()
+			loop = asyncio.get_event_loop()
 		except RuntimeError:
 			enhance_loop()
 			loop = asyncio.new_event_loop()
+			asyncio.set_event_loop(loop)
 
 		loop.run_until_complete(self.fetch_version_manifest())
 
@@ -726,7 +693,7 @@ class MC_Versions:
 		return version_range
 
 	async def fetch_version_manifest(self):
-		response = await aio.request(self.manifest_url, toreturn = 'json+status')
+		response = await aio.request(self.manifest_url, toreturn = ['json', 'status'])
 		manifest_data, status = response
 
 		if status != 200 or not isinstance(manifest_data, dict):
@@ -740,11 +707,13 @@ class MC_Versions:
 
 		self.release_versions.reverse() # Ascending
 
+	@property
 	def latest(self):
 		return self.release_versions[-1]
 
 	def is_version(self, version):
 		try:
-			return bool(self.release_versions.index(version))
+			self.release_versions.index(version)
+			return True
 		except ValueError:
 			return False

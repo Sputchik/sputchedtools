@@ -1,3 +1,4 @@
+@echo off
 rmdir /S /Q dist
 rmdir /S /Q build
 rmdir /S /Q sputchedtools.egg-info
