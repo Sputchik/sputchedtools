@@ -298,8 +298,9 @@ class aio:
 			for _ in range(items_length, return_length):
 				return_items.append(None)
 		
-		if isinstance(session, aiohttp.ClientSession): await ses.close()
-		else: await ses.aclose()
+		if not session:
+			if httpx: await ses.aclose()
+			else: await ses.close()
 		
 		return return_items
 
