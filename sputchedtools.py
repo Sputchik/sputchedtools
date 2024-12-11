@@ -199,8 +199,8 @@ class AsyncProgressBar:
 class aio:
 	"""
 	Methods:
-		aio.request() - aiohttp.ClientSession.get() request
-		aio.post() - aiohttp.ClientSession.post() request
+		aio.request() - 'GET' request object for aio._request (httpx / aiohttp)
+		aio.post() - 'POST' request object for aio._request (httpx / aiohttp)
 		aio.open() - aiofiles.open() method
 		aio.sem_task() - uses received semaphore to return function execution result
 
@@ -208,10 +208,12 @@ class aio:
 
 	@staticmethod
 	async def _request(
-		method: callable,
+		method: Literal['GET', 'POST'],
 		url: str,
-		toreturn: ReturnTypes = ('text'),
+		toreturn: ReturnTypes = 'text',
 		session = None,
+		raise_exceptions = False,
+		httpx = False,
 		**kwargs,
 
 	):
@@ -220,85 +222,108 @@ class aio:
 		Accepts:
 
 			Args:
-				method: callable - aiohttp.ClientSession request method (get and post supported)
+				method: str - `GET` or `POST` Client Session request callable
 				url: str
 
 			Kwargs:
-				toreturn: ReturnTypes or any other ClientResponse full-path (for eval) attribute
-				session
-				any other session.get() argument
+				toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties paths
+				session: httpx/aiohttp Client Session
+				raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
+				
+				any other session.request() argument
 
 		Returns:
 			Valid response: [data]
 
-			if handle_status:
-				status == 403: [-2] + toreturn
-				status == 521: [-1] + toreturn
-
-			status not in range(200, 400): [None] + toreturn
-
 			Request Timeout: [0] + toreturn
 			Cancelled Error: [None] + toreturn
-			Exception: [-3] + toreturn
+			Exception: Raise if raise_exceptions else return_items + None * ( len( toreturn ) - len( existing_items ) )
 
 		"""
 
-		import aiohttp, asyncio, inspect
+		import asyncio, inspect
 
-		return_items = []
-		ses = session or aiohttp.ClientSession()
+		if not session:
+			if httpx:
+				import httpx
+				ses = httpx.AsyncClient(http2 = True, follow_redirects = True)
+
+			else:
+				import aiohttp
+				ses = aiohttp.ClientSession()
+
+			# ses = CreateSession()
+
+		else:
+			ses = session
 
 		if isinstance(toreturn, str):
-			toreturn = toreturn.split('+') # Previous
+			toreturn = toreturn.split('+') # Previous data return method
 
+		return_items = []
+		
 		try:
-			async with ses.request(method, url, **kwargs) as response:
+			response = await ses.request(method, url, **kwargs)
+			
+			for item in toreturn:
 
-				for item in toreturn:
+				try:
+					result = eval(f'response.{item}')
 
-					try:
-						result = eval(f'response.{item}')
+					if inspect.isfunction(result):
+						result = result()
+					elif inspect.iscoroutinefunction(result):
+						result = await result()
+					elif inspect.iscoroutine(result):
+						result = await result
 
-						if inspect.isfunction(result):
-							result = result()
-						elif inspect.iscoroutinefunction(result):
-							result = await result()
-						elif inspect.iscoroutine(result):
-							result = await result
+				except:
+					result = None
 
-					except:
-						result = None
-
-					return_items.append(result)
+				return_items.append(result)
 
 		except asyncio.TimeoutError:
 			return_items.insert(0, 0)
 
 		except asyncio.CancelledError:
 			return
+		
+		except:
+			if raise_exceptions:
+				raise
 
-		finally:
-			if not session: await ses.close()
-			return return_items
+			items_length = len(return_items)
+			return_length = len(toreturn)
+
+			for _ in range(items_length, return_length):
+				return_items.append(None)
+		
+		if httpx: await ses.aclose()
+		else: await ses.close()
+		
+		return return_items
 
 	@staticmethod
 	async def request(
-		url: str,
-		toreturn: ReturnTypes = ('text'),
+		url: str = 'https://example.com/',
+		toreturn: ReturnTypes = 'text',
 		session = None,
-		**kwargs
+		raise_exceptions = False,
+		httpx = False,
+		**kwargs,
 	):
-		return await aio._request('GET', url, toreturn, session, **kwargs)
+		return await aio._request('GET', url, toreturn, session, raise_exceptions, httpx, **kwargs)
 
 	@staticmethod
 	async def post(
-		url: str,
-		toreturn: ReturnTypes = ('text'),
+		url: str = 'https://example.com/',
+		toreturn: ReturnTypes = 'text',
 		session = None,
-		**kwargs
+		raise_exceptions = False,
+		httpx = False,
+		**kwargs,
 	):
-
-		return await aio._request('POST', url, toreturn, session, **kwargs)
+		return await aio._request('POST', url, toreturn, session, raise_exceptions, httpx, **kwargs)
 
 	@staticmethod
 	async def open(
@@ -366,16 +391,16 @@ class num:
 	"""
 	Methods:
 		num.shorten() - Shortens float | int value, using expandable / editable num.suffixes dictionary
-			Example: num.shorten(10_000_000, 0) -> '10m'
+			Example: num.shorten(10_000_000, 0) -> '10M'
 
 		num.unshorten() - Unshortens str, using expandable / editable num.multipliers dictionary
 			Example: num.unshorten('1.63k', round = False) -> 1630.0
 
 		num.decim_round() - Safely rounds decimals in float
-			Example: num.decim_round(2.000127493, 2) -> '2.00013'
+			Example: num.decim_round(2.000127493, 2, round_if_num_gt_1 = False) -> '2.00013'
 
 		num.beautify() - returns decimal-rounded, shortened float-like string
-			Example: num.beautify(4349.567, 3) -> 4.35k
+			Example: num.beautify(4349.567, -1) -> 4.35K
 
 	"""
 
@@ -386,11 +411,12 @@ class num:
 	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 
 	@staticmethod
-	def shorten(value: int | float, decimals: int = 2, suffixes = None) -> str:
+	def shorten(value: int | float, decimals: int = 2, suffixes: list[str] = None) -> str:
 		"""
 		Accepts:
 			value: int - big value
 			decimals: int = 2: digit amount
+			suffixes: list[str] - Use case: File Size calculation: pass `[' B', ' KB', ' MB', ' GB', ' TB', 1024]` or num.fileSize_suffixes
 
 		Returns:
 			Shortened float or int-like str
@@ -432,7 +458,7 @@ class num:
 			mp = num.multipliers[mp]
 
 			if round:
-				unshortened = num.decim_round(number * mp, decimals)
+				unshortened = num.decim_round(number * mp, 0)
 
 			else:
 				unshortened = number * mp
@@ -447,20 +473,18 @@ class num:
 		"""
 		Accepts:
 			value: float: usually with medium-big decimal length
+			round_if_num_gt_1: bool - Wether to use built-in round() method to round received value to received decimals (None if 0)
 			decimals: int: determines amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
 			precission: int: determines precission level (format(value, f'.->{precission}<-f'
 
 		Returns:
-			Accepted value:
-				if value == 0,
-				not isinstance(value & (decimals, precission), float & int)
-				decimals & value < 1
-
+			if isinstance(value, int): str(value)
 			float-like str
 
 		"""
 
-		if isinstance(value, int): return value
+		if isinstance(value, int): return str(value)
+
 		str_val = format(value, f'.{precission}f')
 
 		integer, decim = str_val.split('.')
@@ -475,13 +499,13 @@ class num:
 				if absvalue < min_num: continue
 
 				elif round_if_num_gt_1:
-					return str(round(value, None or decim_amount))
+					return str(round(value, decim_amount or None))
 
 				decimals = decim_amount
 				break
 
 		if round_if_num_gt_1:
-			return str(round(value, None or decimals))
+			return str(round(value, decimals or None))
 
 		for i in range(len(decim)):
 			if decim[i] != '0': break
