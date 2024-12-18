@@ -2,6 +2,7 @@ from typing import Literal
 from collections.abc import Iterator, Iterable
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
+Compression_Methods = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
 
 class Timer:
 
@@ -229,7 +230,7 @@ class aio:
 				toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties paths
 				session: httpx/aiohttp Client Session
 				raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
-				
+
 				any other session.request() argument
 
 		Returns:
@@ -261,10 +262,10 @@ class aio:
 			toreturn = toreturn.split('+') # Previous data return method
 
 		return_items = []
-		
+
 		try:
 			response = await ses.request(method, url, **kwargs)
-			
+
 			for item in toreturn:
 
 				try:
@@ -287,7 +288,7 @@ class aio:
 
 		except asyncio.CancelledError:
 			return
-		
+
 		except:
 			if raise_exceptions:
 				raise
@@ -297,11 +298,11 @@ class aio:
 
 			for _ in range(items_length, return_length):
 				return_items.append(None)
-		
+
 		if not session:
 			if httpx: await ses.aclose()
 			else: await ses.close()
-		
+
 		return return_items
 
 	@staticmethod
@@ -739,3 +740,63 @@ class MC_Versions:
 			return True
 		except ValueError:
 			return False
+
+def make_tarball(source, output):
+	import tarfile, os
+
+	with tarfile.open(output, "w") as tar:
+		tar.add(source, arcname=os.path.basename(source))
+	return output
+
+def compress_file(source, output, algorithm_func, additional_args):
+	with open(source, "rb") as f:
+		data = f.read()
+	compressed_data = algorithm_func(data, **additional_args)
+	with open(output, "wb") as f:
+		f.write(compressed_data)
+	return output
+
+def compress(source, output=None, algorithm: Compression_Methods = 'gzip', compression_level=1, **kwargs):
+	import os
+
+	algorithm_map = {
+		'gzip': (lambda: (__import__('gzip').compress, __import__('gzip').open), {'compresslevel': compression_level}),
+		'bzip2': (lambda: (__import__('bz2').compress, __import__('bz2').open), {'compresslevel': compression_level}),
+		'lzma': (lambda: (__import__('lzma').compress, __import__('lzma').open), {'preset': compression_level}),
+		'lzma2': (lambda: (__import__('lzma').compress, __import__('lzma').open), lambda: {'format': __import__('lzma').FORMAT_XZ, 'preset': compression_level}),
+		'zlib': (lambda: __import__('zlib').compress, {'level': compression_level}),
+		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}),
+		'zstd': (lambda: __import__('zstandard').compress, {}),
+		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC, 'quality': compression_level}),
+	}
+
+	tar_required = True
+	a_compress, additional_args = algorithm_map[algorithm]
+	a_compress = a_compress()
+
+	if isinstance(a_compress, tuple):
+		# tar_required = False
+		a_compress, a_open = a_compress
+
+	if callable(additional_args):
+		additional_args = additional_args()
+
+	if isinstance(source, bytes):
+		return a_compress(
+			source, **additional_args
+		)
+
+	if not output:
+		output = os.path.basename(source) + f".{algorithm}"
+
+	if tar_required:
+		tar_path = output + ".tar"
+		make_tarball(source, tar_path)
+		source = tar_path
+
+	compress_file(source, output, a_compress, additional_args)
+
+	if tar_required:
+		os.remove(source)
+
+	return output

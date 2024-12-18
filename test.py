@@ -42,6 +42,10 @@ def MC_Versions_test():
 	with Timer('(Range)'): print(mc.get_range(sorted_versions))
 	print('Latest Minecraft version:', mc.latest)
 
+def archive_test():
+	compress('__pycache__', algorithm = 'lzma2')
+	compress('sputchedtools.py', algorithm = 'lz4')
+
 with Timer('Test completed?'):
 	enhance_loop()
 	loop = asyncio.new_event_loop()
@@ -53,3 +57,4 @@ with Timer('Test completed?'):
 	num_test_iters = 100
 	num_test()
 	MC_Versions_test()
+	archive_test()
