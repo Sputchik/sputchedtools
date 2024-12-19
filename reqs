@@ -1,0 +1,6 @@
+httpx[http2]
+aiohttp
+aiofiles
+lz4
+zstandard
+brotli
