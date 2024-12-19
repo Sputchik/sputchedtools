@@ -2,7 +2,8 @@ from typing import Literal
 from collections.abc import Iterator, Iterable
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
-Compression_Methods = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
+Algorithms = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
+algorithms = ['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
 
 class Timer:
 
@@ -756,27 +757,27 @@ def compress_file(source, output, algorithm_func, additional_args):
 		f.write(compressed_data)
 	return output
 
-def compress(source, output=None, algorithm: Compression_Methods = 'gzip', compression_level=1, **kwargs):
+def compress(source: str | bytes, algorithm: Algorithms = 'gzip', output=None, compression_level=1, **kwargs):
 	import os
 
 	algorithm_map = {
-		'gzip': (lambda: (__import__('gzip').compress, __import__('gzip').open), {'compresslevel': compression_level}),
-		'bzip2': (lambda: (__import__('bz2').compress, __import__('bz2').open), {'compresslevel': compression_level}),
-		'lzma': (lambda: (__import__('lzma').compress, __import__('lzma').open), {'preset': compression_level}),
-		'lzma2': (lambda: (__import__('lzma').compress, __import__('lzma').open), lambda: {'format': __import__('lzma').FORMAT_XZ, 'preset': compression_level}),
+		'gzip': (lambda: __import__('gzip').compress, {'compresslevel': compression_level}),
+		'bzip2': (lambda: __import__('bz2').compress, {'compresslevel': compression_level}),
+		'lzma': (lambda: __import__('lzma').compress, {'preset': compression_level}),
+		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ, 'preset': compression_level}),
 		'zlib': (lambda: __import__('zlib').compress, {'level': compression_level}),
 		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}),
 		'zstd': (lambda: __import__('zstandard').compress, {}),
 		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC, 'quality': compression_level}),
 	}
 
-	tar_required = True
+	# tar_required = True
 	a_compress, additional_args = algorithm_map[algorithm]
 	a_compress = a_compress()
 
-	if isinstance(a_compress, tuple):
-		# tar_required = False
-		a_compress, a_open = a_compress
+	# if isinstance(a_compress, tuple):
+	# 	# tar_required = False
+	# 	a_compress, a_open = a_compress
 
 	if callable(additional_args):
 		additional_args = additional_args()
@@ -787,16 +788,53 @@ def compress(source, output=None, algorithm: Compression_Methods = 'gzip', compr
 		)
 
 	if not output:
-		output = os.path.basename(source) + f".{algorithm}"
+		output = os.path.basename(os.path.abspath(source)) + f".{algorithm}"
 
-	if tar_required:
-		tar_path = output + ".tar"
-		make_tarball(source, tar_path)
-		source = tar_path
+	# if tar_required:
+	tar_path = output + ".tar"
+	make_tarball(source, tar_path)
+	source = tar_path
 
 	compress_file(source, output, a_compress, additional_args)
 
-	if tar_required:
-		os.remove(source)
+	# if tar_required:
+	os.remove(source)
+
+	return output
+
+def decompress(source: str | bytes, algorithm: Algorithms = 'gzip', output: str = None):
+	algorithm_map = {
+		'gzip': __import__('gzip').decompress,
+		'bzip2': __import__('bz2').decompress,
+		'lzma': __import__('lzma').decompress,
+		'zlib': __import__('zlib').decompress,
+		'lz4': __import__('lz4.frame').frame.decompress,
+		'zstd': __import__('zstandard').decompress,
+		'brotli': __import__('brotli').decompress,
+	}
+
+	a_decompress = algorithm_map[algorithm]
+
+	if isinstance(source, bytes):
+		return a_decompress(source)
+
+	if not output:
+		output = source.split('.')[0]
+
+	import tarfile
+
+	with open(source, 'rb') as f:
+			data = f.read()
+
+	content = a_decompress(data)
+	import io
+	stream = io.BytesIO(content)
+
+	if tarfile.is_tarfile(stream):
+		with tarfile.open(fileobj=stream) as tar:
+			tar.extractall(output)
+	else:
+		with open(output, 'wb') as f:
+			f.write(content)
 
 	return output

@@ -1,5 +1,5 @@
 from sputchedtools import *
-import asyncio, random, aiohttp, httpx
+import asyncio, random, aiohttp, httpx, os, shutil
 
 async def aio_test():
 	response = await aio.request(
@@ -42,9 +42,28 @@ def MC_Versions_test():
 	with Timer('(Range)'): print(mc.get_range(sorted_versions))
 	print('Latest Minecraft version:', mc.latest)
 
-def archive_test():
-	compress('__pycache__', algorithm = 'lzma2')
-	compress('sputchedtools.py', algorithm = 'lz4')
+def compress_test():
+	for algo in algorithms:
+		compress('__pycache__', algorithm = algo)
+		compress('sputchedtools.py', algorithm = algo)
+		print(f'`{algo}`: Compressed')
+
+def decompress_test():
+	for algo in algorithms:
+		ar_folder = f'__pycache__.{algo}'
+		de_folder = f'de.__pycache__.{algo}'
+		ar_file = f'sputchedtools.py.{algo}'
+		de_file = f'de.sputchedtools.py.{algo}'
+		
+		decompress(ar_folder, algorithm = algo, output = de_folder)
+		decompress(ar_file, algorithm = algo, output = de_file)
+
+		os.remove(ar_file)
+		os.remove(ar_folder)
+		try: shutil.rmtree(de_file); shutil.rmtree(de_folder)
+		except: pass
+
+		print(f'`{algo}`: Decompressed')
 
 with Timer('Test completed?'):
 	enhance_loop()
@@ -57,4 +76,5 @@ with Timer('Test completed?'):
 	num_test_iters = 100
 	num_test()
 	MC_Versions_test()
-	archive_test()
+	compress_test()
+	decompress_test()
