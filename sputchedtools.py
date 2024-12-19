@@ -5,6 +5,23 @@ ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'cont
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
 algorithms = ['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
 
+class NewLiner:
+	"""
+	Simply adds a newline before and after the block of code.
+	Use with 'with' keyword.
+	"""
+
+	def __init__(self):
+		self.out = __import__('sys').stdout
+
+	def __enter__(self):
+		self.out.write('\n')
+		self.out.flush()
+
+	def __exit__(self, *args):
+		self.out.write('\n')
+		self.out.flush()
+
 class Timer:
 
 	"""
@@ -242,7 +259,6 @@ class aio:
 			Exception: Raise if raise_exceptions else return_items + None * ( len( toreturn ) - len( existing_items ) )
 
 		"""
-
 		import asyncio, inspect
 
 		if not session:
@@ -802,39 +818,47 @@ def compress(source: str | bytes, algorithm: Algorithms = 'gzip', output=None, c
 
 	return output
 
-def decompress(source: str | bytes, algorithm: Algorithms = 'gzip', output: str = None):
+def decompress(source: str | bytes, algorithm: Algorithms = None, output: str = None):
 	algorithm_map = {
-		'gzip': __import__('gzip').decompress,
-		'bzip2': __import__('bz2').decompress,
-		'lzma': __import__('lzma').decompress,
-		'zlib': __import__('zlib').decompress,
-		'lz4': __import__('lz4.frame').frame.decompress,
-		'zstd': __import__('zstandard').decompress,
-		'brotli': __import__('brotli').decompress,
+		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
+		'bzip2': (lambda: __import__('bz2').decompress, b'BZh'),
+		'lzma': (lambda: __import__('lzma').decompress, b'\xfd7zXZ\x00'),
+		'zlib': (lambda: __import__('zlib').decompress, b'\x78\x01'),
+		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
+		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
+		'brotli': (lambda: __import__('brotli').decompress, (b'\x8b', b'\x0b', b'\x1a', b'\x02')),
 	}
 
-	a_decompress = algorithm_map[algorithm]
+	is_bytes = isinstance(source, bytes)
+	if not is_bytes:
+		content = open(source, 'rb').read()
 
-	if isinstance(source, bytes):
+	if not algorithm:
+		for algorithm, (a_decompress, start_bytes) in algorithm_map.items():
+			if content.startswith(start_bytes):
+				break
+
+	if not algorithm:
+		raise ValueError(f"Could not detect algorithm for decompression, start bytes: {content[:10]}")
+
+	a_decompress = algorithm_map[algorithm][0]()
+
+	if is_bytes:
 		return a_decompress(source)
 
 	if not output:
-		output = source.split('.')[0]
+		output = source.split('.', 1)[0]
 
-	import tarfile
+	import tarfile, io
 
-	with open(source, 'rb') as f:
-			data = f.read()
-
-	content = a_decompress(data)
-	import io
-	stream = io.BytesIO(content)
+	decompressed = a_decompress(content)
+	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
 		with tarfile.open(fileobj=stream) as tar:
 			tar.extractall(output)
 	else:
 		with open(output, 'wb') as f:
-			f.write(content)
+			f.write(decompressed)
 
 	return output

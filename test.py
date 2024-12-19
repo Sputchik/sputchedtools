@@ -54,9 +54,9 @@ def decompress_test():
 		de_folder = f'de.__pycache__.{algo}'
 		ar_file = f'sputchedtools.py.{algo}'
 		de_file = f'de.sputchedtools.py.{algo}'
-		
-		decompress(ar_folder, algorithm = algo, output = de_folder)
-		decompress(ar_file, algorithm = algo, output = de_file)
+
+		decompress(ar_folder, output = de_folder)#,  algorithm = algo)
+		decompress(ar_file, output = de_file)#,  algorithm = algo)
 
 		os.remove(ar_file)
 		os.remove(ar_folder)
@@ -76,5 +76,6 @@ with Timer('Test completed?'):
 	num_test_iters = 100
 	num_test()
 	MC_Versions_test()
+	print()
 	compress_test()
 	decompress_test()
