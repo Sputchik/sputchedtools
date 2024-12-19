@@ -832,6 +832,7 @@ def decompress(source: str | bytes, algorithm: Algorithms = None, output: str = 
 	is_bytes = isinstance(source, bytes)
 	if not is_bytes:
 		content = open(source, 'rb').read()
+	else: content = source
 
 	if not algorithm:
 		for algorithm, (a_decompress, start_bytes) in algorithm_map.items():
