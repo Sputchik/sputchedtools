@@ -65,6 +65,38 @@ def decompress_test():
 
 		print(f'`{algo}`: Decompressed')
 
+def anim_test():
+	import time
+	sl = 0.005
+	start, end = 20, 200
+
+	with Anim('Loading ') as anim:
+		for i in (True, False):
+			for _ in range(start, end):
+				time.sleep(sl)
+				anim.set_text('Loading' + '.' * _ + ' ', i)
+
+			for _ in range(end, 3, -1):
+				time.sleep(sl)
+				anim.set_text('Loading' + '.' * _ + ' ', i)
+
+		for _ in range(start, end):
+			time.sleep(sl)
+			anim.set_text('Loading' + '.' * _ + ' ')
+			anim.set_text('Loading' + '.' * _ + ' ', False)
+		
+		for _ in range(end, 3, -1):
+			time.sleep(sl)
+			anim.set_text('Loading' + '.' * _ + ' ')
+			anim.set_text('Loading' + '.' * _ + ' ', False)
+		
+		anim.set_text(' Done! ', False)
+
+	print('\nWas there text before?')
+
+	with Anim():
+		time.sleep(1)
+
 with Timer('Test completed?'):
 	enhance_loop()
 	loop = asyncio.new_event_loop()
@@ -77,5 +109,9 @@ with Timer('Test completed?'):
 	num_test()
 	MC_Versions_test()
 	print()
+	
 	compress_test()
 	decompress_test()
+	print()
+
+	anim_test()

@@ -5,6 +5,86 @@ ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'cont
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
 algorithms = ['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
 
+class Anim:
+	def __init__(
+		self,
+		prepend_text = '', append_text = '',
+		just_clear_char = True,
+		clear_on_exit = False,
+		delay = 0.03,
+		chars = None
+	):
+		from threading import Thread
+		from shutil import get_terminal_size
+		from time import sleep
+
+		self.Thread = Thread
+		self.get_terminal_size = get_terminal_size
+		self.sleep = sleep
+
+		self.chars = chars or ('⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋', '⠉')
+		self._prepend_text = prepend_text
+		if len(self._prepend_text) != 0 and not self._prepend_text.endswith(' '):
+			self._prepend_text += ' '
+		self._append_text = append_text
+		self.just_clear_char = just_clear_char
+		self.clear_on_exit = clear_on_exit
+		self.delay = delay
+
+		self.terminal_size = self.get_terminal_size().columns
+		self.max_char_len = len(max(self.chars, key=len))
+		self.max_line_length = len(self._prepend_text + self._append_text) + self.max_char_len
+		self.done = False
+
+	def set_text(self, set_text: str, prepended: bool = True):
+		if prepended:
+			attr = '_prepend_text'
+		else:
+			attr = '_append_text'
+
+		new_len = len(set_text)
+		len_diff = abs(self.max_line_length - new_len - 1)
+
+		if self.max_line_length < new_len:
+			self.max_line_length = new_len
+
+		setattr(self, attr, set_text)
+
+		spaces = ' ' * len_diff
+		if spaces: self._append_text += spaces
+
+	def safe_line_echo(self, text: str):
+
+		if len(text) > self.terminal_size:
+			text = text[:self.terminal_size - 1]
+
+		print(text, end='', flush=True)
+
+	def anim(self):
+		while not self.done:
+			# self.terminal_size = self.get_terminal_size().columns
+
+			for text in self.chars:
+
+				line = '\r' + self._prepend_text + text + self._append_text
+				self.safe_line_echo(line)
+				self.sleep(self.delay)
+
+		if self.clear_on_exit:
+			self.safe_line_echo('\r' + ' ' * (len(self._prepend_text + self._append_text) + self.max_char_len))
+
+		elif self.just_clear_char:
+			self.safe_line_echo('\r' + self._prepend_text + ' ' * self.max_char_len + self._append_text)
+
+	def __enter__(self):
+		self.thread = self.Thread(target=self.anim)
+		self.thread.start()
+		return self
+
+	def __exit__(self, *args):
+		self.done = True
+		self.thread.join()
+
 class NewLiner:
 	"""
 	Simply adds a newline before and after the block of code.
