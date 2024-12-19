@@ -135,6 +135,7 @@ class Timer:
 		self.diff = self.time() - self.was
 		formatted = num.decim_round(self.diff, -1)
 		if self.echo: print(f'\nTaken time: {formatted}s {self.txt}')
+		return formatted
 
 class ProgressBar:
 	def __init__(
