@@ -1,8 +1,10 @@
 from setuptools import setup, find_packages
 
+readme = open('README.md', 'r').read()
+
 setup(
 	name = 'sputchedtools',
-	version = '0.23.3',
+	version = '0.23.4',
 	packages = find_packages(),
 	py_modules = ['sputchedtools'],
 	install_requires = [
@@ -14,5 +16,7 @@ setup(
 	author = 'Sputchik',
 	author_email = 'sputchik@gmail.com',
 	url = 'https://github.com/Sputchik/sputchedtools',
+	long_description=readme,
+	long_description_content_type='text/markdown',
 	python_requires = '>=3.8',
 )
