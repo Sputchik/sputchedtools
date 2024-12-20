@@ -23,38 +23,44 @@ class Anim:
 		self.sleep = sleep
 
 		self.chars = chars or ('⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋', '⠉')
-		self._prepend_text = prepend_text
-		if len(self._prepend_text) != 0 and not self._prepend_text.endswith(' '):
-			self._prepend_text += ' '
-		self._append_text = append_text
+		self.prepend_text = prepend_text
+		if len(self.prepend_text) != 0 and not self.prepend_text.endswith(' '):
+			self.prepend_text += ' '
+		self.append_text = append_text
 		self.just_clear_char = just_clear_char
 		self.clear_on_exit = clear_on_exit
 		self.delay = delay
 
 		self.terminal_size = self.get_terminal_size().columns
 		self.max_char_len = len(max(self.chars, key=len))
-		self.max_line_length = len(self._prepend_text + self._append_text) + self.max_char_len
+		self.max_line_length = len(self.prepend_text + self.append_text) + self.max_char_len
+		self.append_raw = self.append_text
 		self.done = False
 
-	def set_text(self, set_text: str, prepended: bool = True):
+	def set_text(self, new_text: str, prepended: bool = True):
+		new_len = len(new_text)
+		if new_len > self.terminal_size:
+			return
+
 		if prepended:
-			attr = '_prepend_text'
+			attr = 'prepend_text'
 		else:
-			attr = '_append_text'
-
-		new_len = len(set_text)
-		len_diff = abs(self.max_line_length - new_len - 1)
-
-		if self.max_line_length < new_len:
-			self.max_line_length = new_len
-
-		setattr(self, attr, set_text)
-
-		spaces = ' ' * len_diff
-		if spaces: self._append_text += spaces
+			attr = 'append_raw'
+		
+		old_len = len(getattr(self, attr))
+		setattr(self, attr, new_text)
+		
+		if new_len >= old_len:
+			self.max_line_length += new_len - self.max_line_length
+			spaces = ''
+		
+		else:
+			spaces = ' ' * self.max_line_length
+		
+		self.append_text = self.append_raw + spaces
+		# print(len(self.append_text))
 
 	def safe_line_echo(self, text: str):
-
 		if len(text) > self.terminal_size:
 			text = text[:self.terminal_size - 1]
 
@@ -62,19 +68,18 @@ class Anim:
 
 	def anim(self):
 		while not self.done:
-			# self.terminal_size = self.get_terminal_size().columns
-
-			for text in self.chars:
-
-				line = '\r' + self._prepend_text + text + self._append_text
+			for char in self.chars:
+				if self.done: break
+				
+				line = '\r' + self.prepend_text + char + self.append_text
 				self.safe_line_echo(line)
 				self.sleep(self.delay)
-
+		
 		if self.clear_on_exit:
-			self.safe_line_echo('\r' + ' ' * (len(self._prepend_text + self._append_text) + self.max_char_len))
+			self.safe_line_echo('\r' + ' ' * (len(self.prepend_text + self.append_text) + self.max_char_len))
 
 		elif self.just_clear_char:
-			self.safe_line_echo('\r' + self._prepend_text + ' ' * self.max_char_len + self._append_text)
+			self.safe_line_echo('\r' + self.prepend_text + ' ' * self.max_char_len + self.append_text)
 
 	def __enter__(self):
 		self.thread = self.Thread(target=self.anim)
