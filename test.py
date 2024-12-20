@@ -3,7 +3,7 @@ import asyncio, random, aiohttp, httpx, os, shutil
 
 async def aio_test():
 	response = await aio.request(
-		'https://example.com',
+		url,
 		toreturn = [
 			val for val in dir(aiohttp.ClientResponse) if not val.startswith('_')
 		],
@@ -16,7 +16,7 @@ async def aio_test():
 
 async def aiox_test():
 	response = await aio.request(
-		'https://example.com',
+		url,
 		toreturn = [
 			val for val in dir(httpx.Response) if not val.startswith('_')
 		],
@@ -67,7 +67,7 @@ def decompress_test():
 
 def anim_test():
 	import time
-	sl = 0.005
+	sl = 0.002
 	start, end = 20, 200
 
 	with Anim('Loading ') as anim:
@@ -94,18 +94,19 @@ def anim_test():
 
 	print('\nWas there text before?')
 
-	with Anim():
+	with Anim(chars = ('.', '..', '...', '....', '...', '..'), delay = 0.1):
 		time.sleep(1)
 
 with Timer('Test completed?'):
 	enhance_loop()
 	loop = asyncio.new_event_loop()
 
+	url = 'https://cloudflare-quic.com/'
 	loop.run_until_complete(aio_test())
 	loop.run_until_complete(aiox_test())
 	print()
 
-	num_test_iters = 100
+	num_test_iters = 5
 	num_test()
 	MC_Versions_test()
 	print()

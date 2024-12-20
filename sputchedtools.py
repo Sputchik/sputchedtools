@@ -32,10 +32,38 @@ class Anim:
 		self.delay = delay
 
 		self.terminal_size = self.get_terminal_size().columns
-		self.max_char_len = len(max(self.chars, key=len))
-		self.max_line_length = len(self.prepend_text + self.append_text) + self.max_char_len
+		self.max_char_len = self.get_max_char_len(self.chars)
+		self.chars = self.edit_chars_spaces(self.chars)
+		self.max_line_length = self.get_max_line_len()
 		self.append_raw = self.append_text
 		self.done = False
+	
+	def get_max_line_len(self) -> int:
+		return len(self.prepend_text + self.append_text) + self.max_char_len
+
+	def get_max_char_len(self, chars) -> int:
+		return len(max(chars, key=len))
+
+	def edit_chars_spaces(self, chars) -> list | tuple:
+		mcl = self.get_max_char_len(chars)
+		if mcl <= 1:
+			return chars
+
+		new_chars = []
+
+		for char in chars:
+			char_len = len(char)
+			len_diff = mcl - char_len
+
+			if len_diff:
+				char += ' ' * len_diff
+			
+			new_chars.append(char)
+		
+		return new_chars
+
+	def set_chars(self, new_chars: tuple | list):
+		self.chars = self.edit_chars_spaces(new_chars)
 
 	def set_text(self, new_text: str, prepended: bool = True):
 		new_len = len(new_text)
@@ -50,7 +78,7 @@ class Anim:
 		old_len = len(getattr(self, attr))
 		setattr(self, attr, new_text)
 		
-		if new_len >= old_len:
+		if new_len > old_len:
 			self.max_line_length += new_len - self.max_line_length
 			spaces = ''
 		
@@ -62,7 +90,7 @@ class Anim:
 
 	def safe_line_echo(self, text: str):
 		if len(text) > self.terminal_size:
-			text = text[:self.terminal_size - 1]
+			text = text[:self.terminal_size]
 
 		print(text, end='', flush=True)
 
