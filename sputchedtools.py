@@ -34,10 +34,10 @@ class Anim:
 		self.terminal_size = self.get_terminal_size().columns
 		self.max_char_len = self.get_max_char_len(self.chars)
 		self.chars = self.edit_chars_spaces(self.chars)
-		self.max_line_length = self.get_max_line_len()
+		self.max_line_len = self.get_max_line_len()
 		self.append_raw = self.append_text
 		self.done = False
-	
+
 	def get_max_line_len(self) -> int:
 		return len(self.prepend_text + self.append_text) + self.max_char_len
 
@@ -57,9 +57,9 @@ class Anim:
 
 			if len_diff:
 				char += ' ' * len_diff
-			
+
 			new_chars.append(char)
-		
+
 		return new_chars
 
 	def set_chars(self, new_chars: tuple | list):
@@ -74,19 +74,18 @@ class Anim:
 			attr = 'prepend_text'
 		else:
 			attr = 'append_raw'
-		
+
 		old_len = len(getattr(self, attr))
 		setattr(self, attr, new_text)
-		
+
 		if new_len > old_len:
-			self.max_line_length += new_len - self.max_line_length
+			self.max_line_len += new_len - self.max_line_len
 			spaces = ''
-		
+
 		else:
-			spaces = ' ' * self.max_line_length
-		
+			spaces = ' ' * self.max_line_len
+
 		self.append_text = self.append_raw + spaces
-		# print(len(self.append_text))
 
 	def safe_line_echo(self, text: str):
 		if len(text) > self.terminal_size:
@@ -98,13 +97,13 @@ class Anim:
 		while not self.done:
 			for char in self.chars:
 				if self.done: break
-				
+
 				line = '\r' + self.prepend_text + char + self.append_text
 				self.safe_line_echo(line)
 				self.sleep(self.delay)
-		
+
 		if self.clear_on_exit:
-			self.safe_line_echo('\r' + ' ' * (len(self.prepend_text + self.append_text) + self.max_char_len))
+			self.safe_line_echo('\r' + ' ' * self.max_line_len)
 
 		elif self.just_clear_char:
 			self.safe_line_echo('\r' + self.prepend_text + ' ' * self.max_char_len + self.append_text)
@@ -166,9 +165,9 @@ class Timer:
 
 	def __exit__(self, *args):
 		self.diff = self.time() - self.was
-		formatted = num.decim_round(self.diff, -1)
-		if self.echo: print(f'\nTaken time: {formatted}s {self.txt}')
-		return formatted
+		self.formatted_diff = num.decim_round(self.diff, -1)
+		if self.echo: print(f'\nTaken time: {self.formatted_diff}s {self.txt}')
+		return self.formatted_diff
 
 class ProgressBar:
 	def __init__(
@@ -400,7 +399,7 @@ class aio:
 			for item in toreturn:
 
 				try:
-					result = eval(f'response.{item}')
+					result = getattr(response, item)
 
 					if inspect.isfunction(result):
 						result = result()
@@ -568,7 +567,7 @@ class num:
 				return f"{formatted}{suffix}"
 
 	@staticmethod
-	def unshorten(value: str, round: bool = True, decimals: int = 2) -> float | int:
+	def unshorten(value: str, round: bool = True) -> float | int:
 		"""
 		Accepts:
 			value: str: int-like value with shortener at the end: 'k', 'm', 'b', 't'
@@ -640,8 +639,8 @@ class num:
 		if round_if_num_gt_1:
 			return str(round(value, decimals or None))
 
-		for i in range(len(decim)):
-			if decim[i] != '0': break
+		for i, char in enumerate(decim):
+			if char != '0': break
 
 		decim = decim[i:i + decimals + 2].rstrip('0')
 
@@ -728,15 +727,6 @@ class Web3Misc:
 		self._nonce = value
 
 	def gas_monitor(self, token_contract, sender: str, period: float | int = 10, multiply_by: float = 1.0) -> None:
-		"""
-		Continuously updates the estimated required gas for a transaction at a specified interval.
-
-		:param token_contact: Token contract with 'transfer' function
-		:param sender: Sender address (checksumed, make sure)
-		:type sender: str
-		:param period: The interval in seconds between updates.
-		:type period: float | int
-		"""
 		dead = '0x000000000000000000000000000000000000dEaD'
 
 		while True:
@@ -744,38 +734,18 @@ class Web3Misc:
 			self.sleep(period)
 
 	def gas_price_monitor(self, period: float | int = 10, multiply_by: float = 1.0) -> None:
-		"""
-		Continuously updates the gas price at a specified interval.
 
-		:param period: The interval in seconds between updates.
-		:type period: float | int
-		"""
 		while True:
 			self._gas_price = round(self.web3.eth.gas_price * multiply_by)
 			self.sleep(period)
 
 	def nonce_monitor(self, address: str, period: float | int = 10) -> None:
-		"""
-		Continuously updates the nonce for a given address at a specified interval.
 
-		:param address: The Ethereum address to monitor.
-		:type address: str
-		:param period: The interval in seconds between updates.
-		:type period: float | int
-		"""
 		while True:
 			self._nonce = self.web3.eth.get_transaction_count(address)
 			self.sleep(period)
 
 	def get_nonce(self, address: str) -> int:
-		"""
-		Retrieves the current nonce for a given address.
-
-		:param address: The Ethereum address.
-		:type address: str
-		:return: The current nonce for the address.
-		:rtype: int
-		"""
 		return self.web3.eth.get_transaction_count(address)
 
 # -------------MINECRAFT-VERSIONING-LOL-------------
@@ -887,7 +857,13 @@ def compress_file(source, output, algorithm_func, additional_args):
 		f.write(compressed_data)
 	return output
 
-def compress(source: str | bytes, algorithm: Algorithms = 'gzip', output=None, compression_level=1, **kwargs):
+def compress(
+		source: str | bytes,
+		algorithm: Algorithms = 'gzip',
+		output=None,
+		compression_level=1,
+		**kwargs
+	):
 	import os
 
 	algorithm_map = {
@@ -896,8 +872,8 @@ def compress(source: str | bytes, algorithm: Algorithms = 'gzip', output=None, c
 		'lzma': (lambda: __import__('lzma').compress, {'preset': compression_level}),
 		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ, 'preset': compression_level}),
 		'zlib': (lambda: __import__('zlib').compress, {'level': compression_level}),
-		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}),
-		'zstd': (lambda: __import__('zstandard').compress, {}),
+		'lz4': (lambda: __import__('lz4.frame').frame.compress, {'compression_level': compression_level}),
+		'zstd': (lambda: __import__('zstandard').compress, {'level': compression_level}),
 		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC, 'quality': compression_level}),
 	}
 
@@ -911,6 +887,8 @@ def compress(source: str | bytes, algorithm: Algorithms = 'gzip', output=None, c
 
 	if callable(additional_args):
 		additional_args = additional_args()
+
+	additional_args.update(kwargs)
 
 	if isinstance(source, bytes):
 		return a_compress(
