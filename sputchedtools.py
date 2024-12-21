@@ -847,6 +847,7 @@ def make_tarball(source, output):
 
 	with tarfile.open(output, "w") as tar:
 		tar.add(source, arcname=os.path.basename(source))
+
 	return output
 
 def compress_file(source, output, algorithm_func, additional_args):
@@ -898,15 +899,20 @@ def compress(
 	if not output:
 		output = os.path.basename(os.path.abspath(source)) + f".{algorithm}"
 
-	# if tar_required:
 	tar_path = output + ".tar"
-	make_tarball(source, tar_path)
+
+	try:
+		make_tarball(source, tar_path)
+
+	except (PermissionError, OSError) as e:
+		os.remove(tar_path)
+		raise e
+
 	source = tar_path
 
-	compress_file(source, output, a_compress, additional_args)
+	compress_file(tar_path, output, a_compress, additional_args)
 
-	# if tar_required:
-	os.remove(source)
+	os.remove(tar_path)
 
 	return output
 
