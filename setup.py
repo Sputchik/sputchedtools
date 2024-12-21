@@ -6,7 +6,7 @@ setup(
 	name = 'sputchedtools',
 	version = '0.23.7',
 	packages = find_packages(),
-	py_modules = ['sputchedtools'],
+	py_modules = ['sputchedtools', 'sptz'],
 	install_requires = [
 		'aiohttp>=3.11.11',
 		'httpx[http2]>=0.28.1',
