@@ -113,7 +113,10 @@ class Anim:
 		self.thread.start()
 		return self
 
-	def __exit__(self, *args):
+	def __exit__(self, exc_type, exc_value, exc_traceback):
+		if exc_type:
+			raise exc_value.with_traceback(exc_traceback)
+		
 		self.done = True
 		self.thread.join()
 
@@ -130,7 +133,10 @@ class NewLiner:
 		self.out.write('\n')
 		self.out.flush()
 
-	def __exit__(self, *args):
+	def __exit__(self, exc_type, exc_value, exc_traceback):
+		if exc_type:
+			raise exc_value.with_traceback(exc_traceback)
+		
 		self.out.write('\n')
 		self.out.flush()
 
@@ -163,10 +169,14 @@ class Timer:
 		self.was = self.time()
 		return self
 
-	def __exit__(self, *args):
+	def __exit__(self, exc_type, exc_value, exc_traceback):
+		if exc_type:
+			raise exc_value.with_traceback(exc_traceback)
+		
 		self.diff = self.time() - self.was
 		self.formatted_diff = num.decim_round(self.diff, -1)
 		if self.echo: print(f'\nTaken time: {self.formatted_diff}s {self.txt}')
+
 		return self.formatted_diff
 
 class ProgressBar:
@@ -842,27 +852,52 @@ class MC_Versions:
 		except ValueError:
 			return False
 
-def make_tarball(source, output):
+def make_tar(source, output, ignore_errors, in_memory = False):
 	import tarfile, os
-
-	with tarfile.open(output, "w") as tar:
-		tar.add(source, arcname=os.path.basename(source))
+	
+	if in_memory:
+		import io
+		stream = io.BytesIO()
+	
+	with tarfile.open(output, "w", fileobj = None if not in_memory else stream) as tar:
+		if os.path.isfile(source):
+			tar.add(source, arcname = os.path.basename(source))
+		
+		else:
+			for root, _, files in os.walk(source):
+				for file in files:
+					file_path = os.path.join(root, file)
+					
+					try:
+						tar.add(file_path, arcname = os.path.relpath(file_path, source))
+					
+					except ignore_errors:
+						continue
+	
+	if in_memory:
+		stream.seek(0)
+		return stream.read()
 
 	return output
 
-def compress_file(source, output, algorithm_func, additional_args):
-	with open(source, "rb") as f:
-		data = f.read()
-	compressed_data = algorithm_func(data, **additional_args)
+def compress_file(source: bytes| str, output: str, algorithm_func, additional_args):
+	if not isinstance(source, bytes):
+		with open(source, "rb") as f:
+			source = f.read()
+	
+	compressed_data = algorithm_func(source, **additional_args)
 	with open(output, "wb") as f:
 		f.write(compressed_data)
+	
 	return output
 
 def compress(
 		source: str | bytes,
 		algorithm: Algorithms = 'gzip',
-		output=None,
-		compression_level=1,
+		output = None,
+		ignored_exceptions: type | tuple[type] = PermissionError,
+		tar_in_memory = True,
+		compression_level = 1,
 		**kwargs
 	):
 	import os
@@ -878,13 +913,8 @@ def compress(
 		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC, 'quality': compression_level}),
 	}
 
-	# tar_required = True
 	a_compress, additional_args = algorithm_map[algorithm]
 	a_compress = a_compress()
-
-	# if isinstance(a_compress, tuple):
-	# 	# tar_required = False
-	# 	a_compress, a_open = a_compress
 
 	if callable(additional_args):
 		additional_args = additional_args()
@@ -897,23 +927,20 @@ def compress(
 		)
 
 	if not output:
-		output = os.path.basename(os.path.abspath(source)) + f".{algorithm}"
+		output = os.path.basename(os.path.abspath(source)) + f'.{algorithm}'
 
 	tar_path = output + ".tar"
-
+	stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
+	
 	try:
-		make_tarball(source, tar_path)
-
-	except (PermissionError, OSError) as e:
-		os.remove(tar_path)
+		compress_file(stream if tar_in_memory else tar_path, output, a_compress, additional_args)
+	except (PermissionError, OSError, KeyboardInterrupt) as e:
+		os.remove(output)
 		raise e
 
-	source = tar_path
-
-	compress_file(tar_path, output, a_compress, additional_args)
-
-	os.remove(tar_path)
-
+	if not tar_in_memory:
+		os.remove(tar_path)
+	
 	return output
 
 def decompress(source: str | bytes, algorithm: Algorithms = None, output: str = None):
