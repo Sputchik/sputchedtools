@@ -4,7 +4,7 @@ readme = open('README.md', 'r').read()
 
 setup(
 	name = 'sputchedtools',
-	version = '0.23.14',
+	version = '0.24.0',
 	packages = find_packages(),
 	py_modules = ['sputchedtools', 'sptz'],
 	install_requires = [

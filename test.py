@@ -67,10 +67,10 @@ def decompress_test():
 
 def anim_test():
 	import time
-	sl = 0.002
-	start, end = 20, 200
+	sl = 0.001
+	start, end = 20, 150
 
-	with Anim('Loading ') as anim:
+	with Anim('Loading ', clear_on_exit = True) as anim:
 		for i in (True, False):
 			for _ in range(start, end):
 				time.sleep(sl)
@@ -92,10 +92,10 @@ def anim_test():
 		
 		anim.set_text(' Done! ', False)
 
-	print('\nWas there text before?')
+	print('\rWas there text before?')
 
-	with Anim(chars = ('.', '..', '...', '....', '...', '..'), delay = 0.1):
-		time.sleep(1)
+	with Anim(chars = ('.', '..', '...', '....', '...', '..'), delay = 0.05):
+		time.sleep(0.5)
 
 with Timer('Test completed?'):
 	enhance_loop()

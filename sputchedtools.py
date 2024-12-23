@@ -116,14 +116,16 @@ class Anim:
 	def __exit__(self, exc_type, exc_value, exc_traceback):
 		if exc_type:
 			raise exc_value.with_traceback(exc_traceback)
-		
+
 		self.done = True
 		self.thread.join()
 
 class NewLiner:
+
 	"""
-	Simply adds a newline before and after the block of code.
-	Use with 'with' keyword.
+
+	Simply adds a new line before and after the block of code.
+
 	"""
 
 	def __init__(self):
@@ -136,7 +138,7 @@ class NewLiner:
 	def __exit__(self, exc_type, exc_value, exc_traceback):
 		if exc_type:
 			raise exc_value.with_traceback(exc_traceback)
-		
+
 		self.out.write('\n')
 		self.out.flush()
 
@@ -144,11 +146,13 @@ class Timer:
 
 	"""
 
-	Code execution Timer, use 'with' keyword
-
 	Accepts (order doesn't matter from 0.16.2):
+
 		txt: str = '': text after main print message
-		decimals: int = 2: time difference precission
+
+		echo: bool = True: wether to print taken time
+
+	At enter - returns created instance, at exit - formatted time difference. Original difference is stored at self.diff
 
 	"""
 
@@ -172,7 +176,7 @@ class Timer:
 	def __exit__(self, exc_type, exc_value, exc_traceback):
 		if exc_type:
 			raise exc_value.with_traceback(exc_traceback)
-		
+
 		self.diff = self.time() - self.was
 		self.formatted_diff = num.decim_round(self.diff, -1)
 		if self.echo: print(f'\nTaken time: {self.formatted_diff}s {self.txt}')
@@ -189,52 +193,39 @@ class ProgressBar:
 	):
 
 		if iterator and not isinstance(iterator, Iterator):
+
 			if not hasattr(iterator, '__iter__'):
 				raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+
 			self.iterator = iterator.__iter__()
 
 		else: self.iterator = iterator
 
 		if task_amount is None:
-			if not hasattr(iterator, '__len__'):
-				raise AttributeError(f"You did not provide task amount for Iterator or object with no __len__ attribute\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
-			self._task_amount = iterator.__len__()
 
-		else: self._task_amount = task_amount
+			if not hasattr(iterator, '__len__'):
+				raise AttributeError(f"You didn't provide task amount for Iterator or object with no __len__ attribute\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+
+			self.task_amount = iterator.__len__()
+
+		else: self.task_amount = task_amount
 
 		from sys import stdout
 		self._text = text
-		self._completed_tasks = 0
+		self.completed_tasks = 0
 		self.final_text = final_text
 		self.swrite = stdout.write
 		self.sflush = stdout.flush
 
 	@property
 	def text(self):
-		"""Get the overall task amount."""
 		return self._text
 
 	@text.setter
 	def text(self, value: str):
-		"""Safely change bar text."""
 		val_len = len(value)
 		text_len = len(self._text)
 		self._text = value + ' ' * (text_len - val_len if text_len > val_len else 0)
-
-	@property
-	def task_amount(self):
-		"""Get the overall task amount."""
-		return self._task_amount
-
-	@task_amount.setter
-	def task_amount(self, value: int):
-		"""Set the overall task amount."""
-		self._task_amount = value
-
-	@property
-	def completed_tasks(self):
-		"""Get the number of completed tasks."""
-		return self._completed_tasks
 
 	def __iter__(self):
 		self.update(0)
@@ -251,15 +242,15 @@ class ProgressBar:
 			raise
 
 	def update(self, increment: int = 1):
-		self._completed_tasks += increment
-		self._print_progress()
+		self.completed_tasks += increment
+		self.print_progress()
 
-	def _print_progress(self):
-		self.swrite(f'\r{self._text} {self._completed_tasks}/{self._task_amount}')
+	def print_progress(self):
+		self.swrite(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
 		self.sflush()
 
 	def finish(self):
-		self.finish_message = f'\r{self._text} {self._completed_tasks}/{self._task_amount} {self.final_text}\n'
+		self.finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}\n'
 		self.swrite(self.finish_message)
 		self.sflush()
 
@@ -279,8 +270,10 @@ class AsyncProgressBar:
 		self.sflush = stdout.flush
 
 		if task_amount is None and tasks:
+
 			if not hasattr(tasks, '__len__'):
-				raise AttributeError(f"You did not provide task amount for Async Iterator\n\nType: {type(tasks)}\nAttrs: {dir(tasks)}")
+				raise AttributeError(f"You didn't provide task amount for Async Iterator\n\nType: {type(tasks)}\nAttrs: {dir(tasks)}")
+
 			else:
 				self.task_amount = tasks.__len__()
 
@@ -288,63 +281,74 @@ class AsyncProgressBar:
 
 		self.text = text
 		self.final_text = final_text
-		self._completed_tasks = 0
+		self.completed_tasks = 0
 
-		if tasks is not None:
+		if tasks:
 			if hasattr(tasks, '__aiter__'):
 				self.tasks = tasks
+
 			else:
 				raise ValueError("tasks must be an async iterator or None")
 
-	async def _update(self, increment: int = 1):
-		self._completed_tasks += increment
-		self._print_progress()
+	async def update(self, increment: int = 1):
+		self.completed_tasks += increment
+		self.print_progress()
 
-	def _print_progress(self):
-		self.swrite(f'\r{self.text} {self._completed_tasks}/{self.task_amount}')
+	def print_progress(self):
+		self.swrite(f'\r{self.text} {self.completed_tasks}/{self.task_amount}')
 		self.sflush()
 
 	async def _finish(self):
+
 		if self.task_amount is not None:
-			self.finish_message = f'\r{self.text} {self._completed_tasks}/{self.task_amount} {self.final_text}\n'
+			self.finish_message = f'\r{self.text} {self.completed_tasks}/{self.task_amount} {self.final_text}\n'
+
 		else:
-			self.finish_message = f'\r{self.text} {self._completed_tasks} {self.final_text}\n'
+			self.finish_message = f'\r{self.text} {self.completed_tasks} {self.final_text}\n'
+
 		self.swrite(self.finish_message)
 		self.sflush()
-		self._completed_tasks = 0
+		self.completed_tasks = 0
 
 	async def as_completed(self, tasks):
+
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
-			await self._update()
+			await self.update()
 			yield result
+
 		await self._finish()
 
 	async def gather(self, tasks):
 		results = []
+
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
-			await self._update()
+			await self.update()
 			results.append(result)
+
 		await self._finish()
 		return results
 
 	async def __aiter__(self):
 		if not hasattr(self, 'tasks'):
-			raise ValueError("AsyncProgressBar object was not initialized with an async iterator")
+			raise ValueError("You didn't specify coroutine iterator")
 
 		async for task in self.tasks:
-			await self._update()
+			await self.update()
 			yield task
+
 		await self._finish()
 
 class aio:
+
 	"""
+
 	Methods:
-		aio.request() - 'GET' request object for aio._request (httpx / aiohttp)
-		aio.post() - 'POST' request object for aio._request (httpx / aiohttp)
-		aio.open() - aiofiles.open() method
-		aio.sem_task() - uses received semaphore to return function execution result
+		- aio.request() - 'GET' wrapper for aio._request
+		- aio.post() - 'POST' wrapper for aio._request
+		- aio.open() - aiofiles.open() method
+		- aio.sem_task() - uses received semaphore to return function execution result
 
 	"""
 
@@ -357,31 +361,32 @@ class aio:
 		raise_exceptions = False,
 		httpx = False,
 		**kwargs,
-
 	):
 
 		"""
+
 		Accepts:
 
-			Args:
-				method: str - `GET` or `POST` Client Session request callable
-				url: str
+			- method: `GET` or `POST` request type
+			- url: str
 
-			Kwargs:
-				toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties paths
-				session: httpx/aiohttp Client Session
-				raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
+			- toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties paths
 
-				any other session.request() argument
+			- session: httpx/aiohttp Client Session
+
+			- raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
+
+			- any other session.request() argument
 
 		Returns:
-			Valid response: [data]
+			- Valid response: [data]
 
-			Request Timeout: [0] + toreturn
-			Cancelled Error: [None] + toreturn
-			Exception: Raise if raise_exceptions else return_items + None * ( len( toreturn ) - len( existing_items ) )
+			- Request Timeout: [0, *toreturn]
+			- Cancelled Error: [None, *toreturn]
+			- Exception: Raise if raise_exceptions else return_items + None * ( len(toreturn) - len(existing_items) )
 
 		"""
+
 		import asyncio, inspect
 
 		if not session:
@@ -475,25 +480,30 @@ class aio:
 		content = None,
 		**kwargs
 	):
+
 		"""
-		Asynchronously read from or write to a file using aiofiles.
 
-		Args:
-			file (str): File path
-			action (str): Operation to perform ('read' or 'write')
-			mode (str): File open mode ('r', 'w', 'rb', 'wb', etc.)
-			content: Content to write (required for write operation)
+		Accepts:
 
-		Kwargs:
-			**kwargs: Additional arguments for aiofiles.open()
+			- file: str - File path
+
+			- action: str - Operation to perform ('read' or 'write')
+
+			- mode: str - File open mode ('r', 'w', 'rb', 'wb', etc.)
+
+			- content: Any - Content to write (required for write operation)
+
+			- Any other arguments for aiofiles.open()
 
 		Returns:
-			- str|bytes: File content when action != 'write'
-			- int: Number of bytes written when action = 'write'
+			- str | bytes: File content if action != 'write'
+			- int: Number of bytes written if action == 'write'
 
 		Raises:
 			ValueError: If trying to write without content
+
 		"""
+
 		import aiofiles
 
 		async with aiofiles.open(file, mode, **kwargs) as f:
@@ -508,9 +518,10 @@ class aio:
 		func: callable,
 		*args, **kwargs
 	):
-		async with semaphore: return await func(*args, **kwargs)
+		async with semaphore:
+			return await func(*args, **kwargs)
 
-def enhance_loop():
+def enhance_loop() -> bool:
 	from sys import platform
 	import asyncio
 
@@ -530,18 +541,21 @@ def enhance_loop():
 		return False
 
 class num:
+
 	"""
+
 	Methods:
-		num.shorten() - Shortens float | int value, using expandable / editable num.suffixes dictionary
+
+		- num.shorten() - Shortens float | int value, using expandable / editable num.suffixes dictionary
 			Example: num.shorten(10_000_000, 0) -> '10M'
 
-		num.unshorten() - Unshortens str, using expandable / editable num.multipliers dictionary
-			Example: num.unshorten('1.63k', round = False) -> 1630.0
+		- num.unshorten() - Unshortens str, using expandable / editable num.multipliers dictionary
+			Example: num.unshorten('1.63k', _round = False) -> 1630.0
 
-		num.decim_round() - Safely rounds decimals in float
+		- num.decim_round() - Safely rounds decimals in float
 			Example: num.decim_round(2.000127493, 2, round_if_num_gt_1 = False) -> '2.00013'
 
-		num.beautify() - returns decimal-rounded, shortened float-like string
+		- num.beautify() - returns decimal-rounded, shortened float-like string
 			Example: num.beautify(4349.567, -1) -> 4.35K
 
 	"""
@@ -553,12 +567,20 @@ class num:
 	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 
 	@staticmethod
-	def shorten(value: int | float, decimals: int = 2, suffixes: list[str] = None) -> str:
+	def shorten(
+		value: int | float,
+		decimals: int = 2,
+		suffixes: list[str] = None
+	) -> str:
+
 		"""
+
 		Accepts:
-			value: int - big value
-			decimals: int = 2: digit amount
-			suffixes: list[str] - Use case: File Size calculation: pass `[' B', ' KB', ' MB', ' GB', ' TB', 1024]` or num.fileSize_suffixes
+
+			- value: int - big value
+			- decimals: int = 2 - round digit amount
+
+			- suffixes: list[str] - Use case: File Size calculation: pass num.fileSize_suffixes
 
 		Returns:
 			Shortened float or int-like str
@@ -577,17 +599,20 @@ class num:
 				return f"{formatted}{suffix}"
 
 	@staticmethod
-	def unshorten(value: str, round: bool = True) -> float | int:
+	def unshorten(
+		value: str,
+		_round: bool = True
+	) -> float | int:
+
 		"""
+
 		Accepts:
-			value: str: int-like value with shortener at the end: 'k', 'm', 'b', 't'
-			round: bool = False | True: wether returned value should be rounded to integer
+
+			- value: str - int-like value with shortener at the end
+
+			- _round: bool - wether returned value should be rounded to integer
 
 		Returns:
-			Accepted value:
-				if not isinstance(float(value[:-1]), float)
-				if value[-1] not in multipliers: 'k', 'm', 'b', 't'
-
 			Unshortened float or int
 
 		"""
@@ -599,8 +624,8 @@ class num:
 			number = float(number)
 			mp = num.multipliers[mp]
 
-			if round:
-				unshortened = num.decim_round(number * mp, 0)
+			if _round:
+				unshortened = round(number * mp)
 
 			else:
 				unshortened = number * mp
@@ -611,17 +636,31 @@ class num:
 			return value
 
 	@staticmethod
-	def decim_round(value: float, decimals: int = 2, round_if_num_gt_1: bool = True, precission: int = 20, decims: list[int] = None) -> str:
+	def decim_round(
+		value: float,
+		decimals: int = 2,
+		round_if_num_gt_1: bool = True,
+		precission: int = 20,
+		decims: list[int] = None
+	) -> str:
+
 		"""
+
 		Accepts:
-			value: float: usually with medium-big decimal length
-			round_if_num_gt_1: bool - Wether to use built-in round() method to round received value to received decimals (None if 0)
-			decimals: int: determines amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
-			precission: int: determines precission level (format(value, f'.->{precission}<-f'
+
+			- value: float - usually with medium-big decimal length
+
+			- round_if_num_gt_1: bool - Wether to use built-in round() method to round received value to received decimals (None if 0)
+
+			- decimals: int - amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
+
+			- precission: int - precission level (format(value, f'.->{precission}<-f'
+
+			- decims: list[int] - if decimals argument is -1, this can be passed to change how many decimals to leave: default list is [1000, 100, 10, 5], List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 
 		Returns:
-			if isinstance(value, int): str(value)
-			float-like str
+			- float-like str
+			- str(value): if isinstance(value, int)
 
 		"""
 
@@ -671,88 +710,61 @@ class num:
 		return num.shorten(float(num.decim_round(value, decimals, precission)), decimals)
 
 class Web3Misc:
+
 	"""
-	A utility class for managing Ethereum-related tasks such as gas price, gas estimation, and nonce retrieval.
 
 	Methods:
-		- start_gas_monitor(period: float | int = 10) -> None
-		- start_gas_price_monitor(tx: dict, period: float | int = 10) -> None
-		- start_nonce_monitor(address: str, period: float | int = 10) -> None
-		- get_nonce(address: str) -> int
-
-	Properties:
-		- gas: The current gas price.
-		- gas_price: The estimated gas price for a transaction.
-		- nonce: The current nonce for an address.
+		- gas_monitor()
+		- gas_price_monitor()
+		- nonce_monitor()
+		- get_nonce()
 
 	Attributes:
-		- web3: The Web3 instance to interact with the Ethereum network.
+		- web3: web3.Web3 instance
+
 	"""
 
 	def __init__(self, web3):
-		"""
-		Initializes the Web3Misc instance with a Web3 instance.
 
-		:param web3: The Web3 instance to interact with the Ethereum network.
-		:type web3: Web3
-		"""
-		self._web3 = web3
-		self._gas = None
-		self._gas_price = None
-		self._nonce = None
+		self.web3 = web3
+		self.gas = None
+		self.gas_price = None
+		self.nonce = None
 
 		from time import sleep
 		self.sleep = sleep
 
-	@property
-	def web3(self):
-		return self._web3
-
-	@web3.setter
-	def web3(self, value):
-		self._web3 = value
-
-	@property
-	def gas(self):
-		return self._gas
-
-	@gas.setter
-	def gas(self, value):
-		self._gas = value
-
-	@property
-	def gas_price(self):
-		return self._gas_price
-
-	@gas_price.setter
-	def gas_price(self, value):
-		self._gas_price = value
-
-	@property
-	def nonce(self):
-		return self._nonce
-
-	@nonce.setter
-	def nonce(self, value):
-		self._nonce = value
-
-	def gas_monitor(self, token_contract, sender: str, period: float | int = 10, multiply_by: float = 1.0) -> None:
+	def gas_monitor(
+		self,
+		token_contract: str,
+		sender: str,
+		period: float | int = 10,
+		multiply_by: float = 1.0
+	) -> None:
 		dead = '0x000000000000000000000000000000000000dEaD'
 
 		while True:
-			self._gas = round(token_contract.functions.transfer(dead, 0).estimate_gas({'from': sender}) * multiply_by)
+			self.gas = round(token_contract.functions.transfer(dead, 0).estimate_gas({'from': sender}) * multiply_by)
 			self.sleep(period)
 
-	def gas_price_monitor(self, period: float | int = 10, multiply_by: float = 1.0) -> None:
+	def gas_price_monitor(
+		self,
+		period: float | int = 10,
+		multiply_by: float = 1.0
+	) -> None:
 
 		while True:
-			self._gas_price = round(self.web3.eth.gas_price * multiply_by)
+			self.gas_price = round(self.web3.eth.gas_price * multiply_by)
 			self.sleep(period)
 
-	def nonce_monitor(self, address: str, period: float | int = 10) -> None:
+	def nonce_monitor(
+		self,
+		address: str,
+		period: float | int = 10
+	) -> None:
 
 		while True:
-			self._nonce = self.web3.eth.get_transaction_count(address)
+			self.nonce = self.web3.eth.get_transaction_count(address)
 			self.sleep(period)
 
 	def get_nonce(self, address: str) -> int:
@@ -774,7 +786,17 @@ class MC_VersionList:
 class MC_Versions:
 	def __init__(self) -> None:
 		import asyncio
+		from re import findall
+
 		self.manifest_url = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
+
+		self.findall = findall
+		# Pattern for a single version
+		version_pattern = r'1\.\d+(?:\.\d+){0,1}'
+		# Pattern for a single version or a version range
+		item_pattern = rf'{version_pattern}(?:\s*-\s*{version_pattern})*'
+		# Full pattern allowing multiple items separated by commas
+		self.full_pattern = rf'{item_pattern}(?:,\s*{item_pattern})*'
 
 		try:
 			loop = asyncio.get_event_loop()
@@ -784,6 +806,7 @@ class MC_Versions:
 			asyncio.set_event_loop(loop)
 
 		loop.run_until_complete(self.fetch_version_manifest())
+		self.latest = self.release_versions[-1]
 
 	def sort(self, mc_vers: list[str]) -> list[str]:
 		filtered_vers = set()
@@ -792,7 +815,10 @@ class MC_Versions:
 			if not ver: continue
 
 			try:
-				filtered_vers.add(self.release_versions.index(ver))
+				filtered_vers.add(
+					self.release_versions.index(ver)
+				)
+
 			except ValueError:
 				continue
 
@@ -800,7 +826,10 @@ class MC_Versions:
 
 		return MC_VersionList([self.release_versions[index] for index in sorted_indices], sorted_indices)
 
-	def get_range(self, mc_vers: MC_VersionList) -> str:
+	def get_range(self, mc_vers: MC_VersionList | list | tuple) -> str:
+		if isinstance(mc_vers, (list, tuple)):
+			mc_vers = self.sort(mc_vers)
+
 		version_range = ''
 		start = mc_vers.versions[0]  # Start of a potential range
 		end = start  # End of the current range
@@ -826,12 +855,15 @@ class MC_Versions:
 
 		return version_range
 
+	def get_list(self, mc_vers: str):
+		return self.findall(self.full_pattern, mc_vers)
+
 	async def fetch_version_manifest(self):
 		response = await aio.request(self.manifest_url, toreturn = ['json', 'status'])
 		manifest_data, status = response
 
 		if status != 200 or not isinstance(manifest_data, dict):
-			raise TypeError(f"Couldn't fetch minecraft versions manifest from `{self.manifest_url}`\nStatus: {status}")
+			raise ConnectionError(f"Couldn't fetch minecraft versions manifest from `{self.manifest_url}`\nStatus: {status}")
 
 		self.release_versions: list[str] = []
 
@@ -841,65 +873,76 @@ class MC_Versions:
 
 		self.release_versions.reverse() # Ascending
 
-	@property
-	def latest(self):
-		return self.release_versions[-1]
-
-	def is_version(self, version):
+	def is_version(self, version: str):
 		try:
 			self.release_versions.index(version)
 			return True
 		except ValueError:
 			return False
 
-def make_tar(source, output, ignore_errors, in_memory = False):
+def make_tar(
+	source,
+	output,
+	ignore_errors = PermissionError,
+	in_memory = False
+):
 	import tarfile, os
-	
+
 	if in_memory:
 		import io
 		stream = io.BytesIO()
-	
-	with tarfile.open(output, "w", fileobj = None if not in_memory else stream) as tar:
+
+	with tarfile.open(
+		output, "w",
+		fileobj = None if not in_memory else stream
+	) as tar:
+
 		if os.path.isfile(source):
 			tar.add(source, arcname = os.path.basename(source))
-		
+
 		else:
 			for root, _, files in os.walk(source):
 				for file in files:
+
 					file_path = os.path.join(root, file)
-					
+
 					try:
 						tar.add(file_path, arcname = os.path.relpath(file_path, source))
-					
+
 					except ignore_errors:
 						continue
-	
+
 	if in_memory:
 		stream.seek(0)
 		return stream.read()
 
 	return output
 
-def compress_file(source: bytes| str, output: str, algorithm_func, additional_args):
+def compress_file(
+	source: bytes | str,
+	output: str,
+	compress_func,
+	additional_args
+):
 	if not isinstance(source, bytes):
 		with open(source, "rb") as f:
 			source = f.read()
-	
-	compressed_data = algorithm_func(source, **additional_args)
+
+	compressed_data = compress_func(source, **additional_args)
 	with open(output, "wb") as f:
 		f.write(compressed_data)
-	
+
 	return output
 
 def compress(
-		source: str | bytes,
-		algorithm: Algorithms = 'gzip',
-		output = None,
-		ignored_exceptions: type | tuple[type] = PermissionError,
-		tar_in_memory = True,
-		compression_level = 1,
-		**kwargs
-	):
+	source: bytes | str,
+	algorithm: Algorithms = 'gzip',
+	output = None,
+	ignored_exceptions: type | tuple[type] = PermissionError,
+	tar_in_memory = True,
+	compression_level = 1,
+	**kwargs
+):
 	import os
 
 	algorithm_map = {
@@ -931,19 +974,23 @@ def compress(
 
 	tar_path = output + ".tar"
 	stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
-	
+
 	try:
 		compress_file(stream if tar_in_memory else tar_path, output, a_compress, additional_args)
-	except (PermissionError, OSError, KeyboardInterrupt) as e:
+	except (PermissionError, OSError, KeyboardInterrupt):
 		os.remove(output)
-		raise e
+		raise
 
 	if not tar_in_memory:
 		os.remove(tar_path)
-	
+
 	return output
 
-def decompress(source: str | bytes, algorithm: Algorithms = None, output: str = None):
+def decompress(
+	source: bytes | str,
+	algorithm: Algorithms = None,
+	output: str = None
+):
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
 		'bzip2': (lambda: __import__('bz2').decompress, b'BZh'),
@@ -965,7 +1012,7 @@ def decompress(source: str | bytes, algorithm: Algorithms = None, output: str = 
 				break
 
 	if not algorithm:
-		raise ValueError(f"Could not detect algorithm for decompression, start bytes: {content[:10]}")
+		raise ValueError(f"Couldn't detect algorithm for decompression, start bytes: {content[:10]}")
 
 	a_decompress = algorithm_map[algorithm][0]()
 
