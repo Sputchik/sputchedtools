@@ -55,8 +55,8 @@ def decompress_test():
 		ar_file = f'sputchedtools.py.{algo}'
 		de_file = f'de.sputchedtools.py.{algo}'
 
-		decompress(ar_folder, output = de_folder)#,  algorithm = algo)
-		decompress(ar_file, output = de_file)#,  algorithm = algo)
+		decompress(ar_folder, output = de_folder)
+		decompress(ar_file, output = de_file)
 
 		os.remove(ar_file)
 		os.remove(ar_folder)
@@ -67,7 +67,7 @@ def decompress_test():
 
 def anim_test():
 	import time
-	sl = 0.001
+	sl = 0.0075
 	start, end = 20, 150
 
 	with Anim('Loading ', clear_on_exit = True) as anim:
@@ -83,19 +83,23 @@ def anim_test():
 		for _ in range(start, end):
 			time.sleep(sl)
 			anim.set_text('Loading' + '.' * _ + ' ')
-			anim.set_text('Loading' + '.' * _ + ' ', False)
+			anim.set_text(' Loading' + '.' * _ + ' ', False)
 		
 		for _ in range(end, 3, -1):
 			time.sleep(sl)
 			anim.set_text('Loading' + '.' * _ + ' ')
-			anim.set_text('Loading' + '.' * _ + ' ', False)
+			anim.set_text(' Loading' + '.' * _ + ' ', False)
 		
 		anim.set_text(' Done! ', False)
 
-	print('\rWas there text before?')
+	print('Was there text before????')
 
-	with Anim(chars = ('.', '..', '...', '....', '...', '..'), delay = 0.05):
-		time.sleep(0.5)
+	# with Anim('Selecting... ') as anim:
+	# 	anim.set_text('Fetching something... ')
+	# 	time.sleep(0.1)
+	# 	anim.set_text('Selecting what... ')
+	# 	anim.set_text('Downloading... ')
+	# 	time.sleep(1)
 
 with Timer('Test completed?'):
 	enhance_loop()

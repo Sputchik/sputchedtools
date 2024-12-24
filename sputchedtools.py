@@ -12,6 +12,7 @@ class Anim:
 		just_clear_char = True,
 		clear_on_exit = False,
 		delay = 0.03,
+		manual_update = False,
 		chars = None
 	):
 		from threading import Thread
@@ -22,30 +23,32 @@ class Anim:
 		self.get_terminal_size = get_terminal_size
 		self.sleep = sleep
 
-		self.chars = chars or ('⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋', '⠉')
+		self.chars = chars or  ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
 		self.prepend_text = prepend_text
+
 		if len(self.prepend_text) != 0 and not self.prepend_text.endswith(' '):
 			self.prepend_text += ' '
+
 		self.append_text = append_text
 		self.just_clear_char = just_clear_char
 		self.clear_on_exit = clear_on_exit
 		self.delay = delay
+		self.manual_update = manual_update
 
 		self.terminal_size = self.get_terminal_size().columns
-		self.max_char_len = self.get_max_char_len(self.chars)
-		self.chars = self.edit_chars_spaces(self.chars)
-		self.max_line_len = self.get_max_line_len()
-		self.append_raw = self.append_text
+		self.chars = self.adapt_chars_spaces(self.chars)
 		self.done = False
 
-	def get_max_line_len(self) -> int:
-		return len(self.prepend_text + self.append_text) + self.max_char_len
+	def get_line(self):
+		return '\r' + self.prepend_text + self.char + self.append_text
 
-	def get_max_char_len(self, chars) -> int:
+	@classmethod
+	def get_max_char_len(cls, chars) -> int:
 		return len(max(chars, key=len))
 
-	def edit_chars_spaces(self, chars) -> list | tuple:
-		mcl = self.get_max_char_len(chars)
+	@classmethod
+	def adapt_chars_spaces(cls, chars) -> list | tuple:
+		mcl = cls.get_max_char_len(chars)
 		if mcl <= 1:
 			return chars
 
@@ -63,7 +66,7 @@ class Anim:
 		return new_chars
 
 	def set_chars(self, new_chars: tuple | list):
-		self.chars = self.edit_chars_spaces(new_chars)
+		self.chars = self.adapt_chars_spaces(new_chars)
 
 	def set_text(self, new_text: str, prepended: bool = True):
 		new_len = len(new_text)
@@ -73,52 +76,57 @@ class Anim:
 		if prepended:
 			attr = 'prepend_text'
 		else:
-			attr = 'append_raw'
+			attr = 'append_text'
 
 		old_len = len(getattr(self, attr))
 		setattr(self, attr, new_text)
 
-		if new_len > old_len:
-			self.max_line_len += new_len - self.max_line_len
-			spaces = ''
-
-		else:
-			spaces = ' ' * self.max_line_len
-
-		self.append_text = self.append_raw + spaces
+		if new_len < old_len:
+			diff = abs(old_len - new_len)
+			spaces = ' ' * diff
+			self.safe_line_echo(self.get_line() + spaces)
 
 	def safe_line_echo(self, text: str):
 		if len(text) > self.terminal_size:
 			text = text[:self.terminal_size]
 
-		print(text, end='', flush=True)
+		print(text, end = '', flush = True)
+
+	def update(self):
+		line = self.get_line()
+		self.safe_line_echo(line)
 
 	def anim(self):
 		while not self.done:
-			for char in self.chars:
+			for self.char in self.chars:
 				if self.done: break
 
-				line = '\r' + self.prepend_text + char + self.append_text
-				self.safe_line_echo(line)
+				self.update()
 				self.sleep(self.delay)
 
 		if self.clear_on_exit:
-			self.safe_line_echo('\r' + ' ' * self.max_line_len)
+			self.safe_line_echo('\r' + ' ' * len(self.get_line()) + '\r')
 
 		elif self.just_clear_char:
-			self.safe_line_echo('\r' + self.prepend_text + ' ' * self.max_char_len + self.append_text)
+			self.safe_line_echo('\r' + self.prepend_text + ' ' * len(self.char) + self.append_text)
 
 	def __enter__(self):
-		self.thread = self.Thread(target=self.anim)
-		self.thread.start()
+		if self.manual_update:
+			self.update()
+
+		else:
+			self.thread = self.Thread(target=self.anim)
+			self.thread.start()
+
 		return self
 
 	def __exit__(self, exc_type, exc_value, exc_traceback):
 		if exc_type:
 			raise exc_value.with_traceback(exc_traceback)
 
-		self.done = True
-		self.thread.join()
+		if not self.manual_update:
+			self.done = True
+			self.thread.join()
 
 class NewLiner:
 
