@@ -966,6 +966,7 @@ def compress(
 	ignored_exceptions: type | tuple[type] = PermissionError,
 	tar_in_memory = True,
 	compression_level = None,
+	check_algorithm_support = False,
 	**kwargs
 ):
 	import os
@@ -982,6 +983,17 @@ def compress(
 	}
 
 	a_compress, additional_args, slug_map = algorithm_map[algorithm]
+
+	if check_algorithm_support:
+		if not algorithm: return
+
+		try:
+			a_compress()
+			return True
+
+		except:
+			return False
+
 	a_compress = a_compress()
 
 	if callable(additional_args):
