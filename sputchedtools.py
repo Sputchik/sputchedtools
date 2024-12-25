@@ -2,8 +2,8 @@ from typing import Literal
 from collections.abc import Iterator, Iterable, Buffer
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
-Algorithms = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
-algorithms = ['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
+Algorithms = Literal['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
+algorithms = ['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
 
 class Anim:
 	def __init__(
@@ -993,7 +993,7 @@ def compress(
 		'bzip2': (lambda: __import__('bz2').compress, {}, {'compression_level': 'compresslevel'}),
 		'lzma': (lambda: __import__('lzma').compress, {}, {'compression_level': 'preset'}),
 		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ}, {'compression_level': 'preset'}),
-		'zlib': (lambda: __import__('zlib').compress, {}, {'compression_level': 'level'}),
+		'deflate': (lambda: __import__('zlib').compress, {}, {'compression_level': 'level'}),
 		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}, {'compression_level': 'compression_level'}),
 		'zstd': (lambda: __import__('zstandard').compress, {}, {'compression_level': 'level'}),
 		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC}, {'compression_level': 'quality'}),
@@ -1088,16 +1088,13 @@ def decompress(
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
 		'bzip2': (lambda: __import__('bz2').decompress, b'BZh'),
 		'lzma': (lambda: __import__('lzma').decompress, b'\xfd7zXZ'),
-		'zlib': (lambda: __import__('zlib').decompress, b'x'),
+		'deflate': (lambda: __import__('zlib').decompress, b'x'),
 		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
 		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
 		'brotli': (lambda: __import__('brotli').decompress, is_brotli),
 	}
 
-	is_bytes = isinstance(source, bytes)
-	if not is_bytes:
-		content = open(source, 'rb').read()
-	else: content = source
+	type, content = get_content(source)
 
 	if not algorithm:
 		for algo, (a_decompress, start_bytes) in algorithm_map.items():
@@ -1113,24 +1110,21 @@ def decompress(
 
 	a_decompress = algorithm_map[algorithm][0]()
 
-	if is_bytes:
-		return a_decompress(source)
-
+	if hasattr(output, 'write'):
+		return output.write(decompressed)
+	
 	if not output:
 		output = source.rsplit('.', 1)[0]
 
-	import tarfile, io
-
 	decompressed = a_decompress(content)
-
-	if hasattr(output, 'write'):
-		return output.write(decompressed)
-
+	
+	import tarfile, io
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
 		with tarfile.open(fileobj=stream) as tar:
 			tar.extractall(output)
+	
 	else:
 		with open(output, 'wb') as f:
 			f.write(decompressed)
