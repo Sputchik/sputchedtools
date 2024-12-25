@@ -42,28 +42,43 @@ def MC_Versions_test():
 	with Timer('(Range)'): print(mc.get_range(sorted_versions))
 	print('Latest Minecraft version:', mc.latest)
 
-def compress_test():
-	for algo in algorithms:
-		compress('__pycache__', algorithm = algo)
-		compress('sputchedtools.py', algorithm = algo)
-		print(f'`{algo}`: Compressed')
+def compress_test():	
+	files = (_compress_file, compress_folder)
+
+	with NewLiner():
+		for file in files:
+			for algo in algorithms:
+				out = os.path.basename(file) + f'.{algo}'
+
+				with Timer(False) as t:
+					compress(file, algorithm = algo, output = out, compression_level=5)
+				
+				diff = t.diff * 1000
+				size = os.path.getsize(out)
+				formatted_size = num.shorten(size)
+
+				print(f'{algo}: Compressed {file}: {formatted_size}, {diff:.2f}ms')
 
 def decompress_test():
-	for algo in algorithms:
-		ar_folder = f'__pycache__.{algo}'
-		de_folder = f'de.__pycache__.{algo}'
-		ar_file = f'sputchedtools.py.{algo}'
-		de_file = f'de.sputchedtools.py.{algo}'
+	files = (_compress_file, compress_folder)
 
-		decompress(ar_folder, output = de_folder)
-		decompress(ar_file, output = de_file)
+	with NewLiner():
+		for file in files:
+			for algo in algorithms:
+				source = file + f'.{algo}'
+				out = 'de-' + source
+				
+				if os.path.exists(out):
+					shutil.rmtree(out)
 
-		os.remove(ar_file)
-		os.remove(ar_folder)
-		try: shutil.rmtree(de_file); shutil.rmtree(de_folder)
-		except: pass
-
-		print(f'`{algo}`: Decompressed')
+				with Timer(False) as t:
+					decompress(source, output = out)
+				
+				diff = t.diff * 1000
+				print(f'{algo}: Decompressed {source}, {diff:.2f}ms')
+				os.remove(source)
+				try: shutil.rmtree(out); shutil.rmtree(out); shutil.rmtree(out); shutil.rmtree(out); shutil.rmtree(out)
+				except: pass
 
 def anim_test():
 	import time
@@ -113,10 +128,12 @@ with Timer('Test completed?'):
 	num_test_iters = 5
 	num_test()
 	MC_Versions_test()
-	print()
 	
+	_compress_file = 'sputchedtools.py'
+	compress_folder = '__pycache__'
+	num.suffixes = num.fileSize_suffixes
+
 	compress_test()
 	decompress_test()
-	print()
 
 	anim_test()

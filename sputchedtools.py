@@ -40,11 +40,23 @@ class Anim:
 		self.done = False
 
 	def get_line(self):
-		return '\r' + self.prepend_text + self.char + self.append_text
+		return f'\r{self.prepend_text}{self.char}{self.append_text}'
 
 	@classmethod
 	def get_max_char_len(cls, chars) -> int:
-		return len(max(chars, key=len))
+		if not all(hasattr(char, '__len__') for char in chars):
+			last_char = chars[-1]
+
+			if hasattr(last_char, '__str__'):
+				return len(
+					str(chars[-1])
+				)
+			else:
+				raise TypeError(f'Provided char list has neither `__len__` nor `__str__` attribute')
+		
+		return len(
+			max(chars, key = len)
+		)
 
 	@classmethod
 	def adapt_chars_spaces(cls, chars) -> list | tuple:
@@ -1002,11 +1014,11 @@ def decompress(
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
 		'bzip2': (lambda: __import__('bz2').decompress, b'BZh'),
-		'lzma': (lambda: __import__('lzma').decompress, b'\xfd7zXZ\x00'),
-		'zlib': (lambda: __import__('zlib').decompress, b'\x78\x01'),
+		'lzma': (lambda: __import__('lzma').decompress, b'\xfd7zXZ'),
+		'zlib': (lambda: __import__('zlib').decompress, b'x'),
 		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
 		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
-		'brotli': (lambda: __import__('brotli').decompress, (b'\x8b', b'\x0b', b'\x1a', b'\x02')),
+		'brotli': (lambda: __import__('brotli').decompress, b'\x1b\xff'),
 	}
 
 	is_bytes = isinstance(source, bytes)
@@ -1015,8 +1027,9 @@ def decompress(
 	else: content = source
 
 	if not algorithm:
-		for algorithm, (a_decompress, start_bytes) in algorithm_map.items():
+		for algo, (a_decompress, start_bytes) in algorithm_map.items():
 			if content.startswith(start_bytes):
+				algorithm = algo
 				break
 
 	if not algorithm:
