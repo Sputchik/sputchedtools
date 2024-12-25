@@ -1,5 +1,5 @@
 from typing import Literal
-from collections.abc import Iterator, Iterable
+from collections.abc import Iterator, Iterable, Buffer
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'zlib', 'lz4', 'zstd', 'brotli']
@@ -905,7 +905,8 @@ def make_tar(
 	output,
 	ignore_errors = PermissionError,
 	in_memory = False
-):
+) -> str | bytes:
+
 	import tarfile, os
 
 	if in_memory:
@@ -943,32 +944,17 @@ def make_tar(
 
 	return output
 
-def compress_file(
-	source: bytes | str,
-	output: str,
-	compress_func,
-	additional_args
-):
-	if not isinstance(source, bytes):
-		with open(source, "rb") as f:
-			source = f.read()
-
-	compressed_data = compress_func(source, **additional_args)
-	with open(output, "wb") as f:
-		f.write(compressed_data)
-
-	return output
-
 def compress(
 	source: bytes | str,
 	algorithm: Algorithms = 'gzip',
 	output = None,
 	ignored_exceptions: type | tuple[type] = PermissionError,
 	tar_in_memory = True,
+	tar_if_file = False,
 	compression_level = None,
 	check_algorithm_support = False,
 	**kwargs
-):
+) -> str | int | bytes:
 	import os
 
 	algorithm_map = {
@@ -991,7 +977,7 @@ def compress(
 			a_compress()
 			return True
 
-		except:
+		except ImportError:
 			return False
 
 	a_compress = a_compress()
@@ -1007,27 +993,36 @@ def compress(
 
 	additional_args.update(kwargs)
 
-	if isinstance(source, bytes):
-		return a_compress(
-			source, **additional_args
-		)
+	is_out_buffer = hasattr(output, 'write') or isinstance(output, Buffer)
+	tar_in_memory = is_out_buffer or tar_in_memory
 
 	if not output:
 		output = os.path.basename(os.path.abspath(source)) + f'.{algorithm}'
 
-	tar_path = output + ".tar"
-	stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
+	if isinstance(source, bytes):
+		compressed = a_compress(
+			source, **additional_args
+		)
 
-	try:
-		compress_file(stream if tar_in_memory else tar_path, output, a_compress, additional_args)
-	except (PermissionError, OSError, KeyboardInterrupt):
-		os.remove(output) # Raises the same if file is opened in another process (PermissionError)
-		raise
+	else:
+		if not tar_if_file and os.path.isfile(source):
+			with open(source, 'rb') as f:
+				compressed = a_compress(f.read(), **additional_args)
 
-	if not tar_in_memory:
-		os.remove(tar_path)
+		else:
+			tar_path = '' if tar_in_memory else output + '.tar'
+			stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
+			compressed = a_compress(stream if tar_in_memory else tar_path, **additional_args)
 
-	return output
+			if not tar_in_memory:
+				os.remove(tar_path)
+
+	if is_out_buffer:
+		return output.write(compressed)
+	
+	with open(output, 'wb') as f:
+		f.write(compressed)
+		return output
 
 def is_brotli(data: bytes) -> bool:
 	"""

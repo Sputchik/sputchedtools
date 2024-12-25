@@ -77,8 +77,13 @@ def decompress_test():
 				diff = t.diff * 1000
 				print(f'{algo}: Decompressed {source}, {diff:.2f}ms')
 				os.remove(source)
-				try: shutil.rmtree(out); shutil.rmtree(out); shutil.rmtree(out); shutil.rmtree(out); shutil.rmtree(out)
-				except: pass
+
+				if os.path.isfile(out):
+					os.remove(out)
+				
+				else:
+					try: shutil.rmtree(out)
+					except: pass
 
 def anim_test():
 	import time
