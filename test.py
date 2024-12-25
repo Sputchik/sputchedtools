@@ -51,7 +51,7 @@ def compress_test():
 				out = os.path.basename(file) + f'.{algo}'
 
 				with Timer(False) as t:
-					compress(file, algorithm = algo, output = out, compression_level=5)
+					compress(file, algorithm = algo, output = out, compression_level=1)
 				
 				diff = t.diff * 1000
 				size = os.path.getsize(out)
@@ -82,7 +82,7 @@ def decompress_test():
 
 def anim_test():
 	import time
-	sl = 0.0075
+	sl = 0.002
 	start, end = 20, 150
 
 	with Anim('Loading ', clear_on_exit = True) as anim:

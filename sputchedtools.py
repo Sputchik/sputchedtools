@@ -53,7 +53,7 @@ class Anim:
 				)
 			else:
 				raise TypeError(f'Provided char list has neither `__len__` nor `__str__` attribute')
-		
+
 		return len(
 			max(chars, key = len)
 		)
@@ -925,12 +925,17 @@ def make_tar(
 				for file in files:
 
 					file_path = os.path.join(root, file)
+					file_rel_path = os.path.relpath(file_path, source)
 
-					try:
-						tar.add(file_path, arcname = os.path.relpath(file_path, source))
+					with open(file_path, 'rb') as file_buffer:
+						try:
+							file_buffer.peek()
 
-					except ignore_errors:
-						continue
+						except ignore_errors:
+							continue
+
+						info = tar.gettarinfo(arcname=file_rel_path, fileobj=file_buffer)
+						tar.addfile(info, file_buffer)
 
 	if in_memory:
 		stream.seek(0)
@@ -960,27 +965,33 @@ def compress(
 	output = None,
 	ignored_exceptions: type | tuple[type] = PermissionError,
 	tar_in_memory = True,
-	compression_level = 1,
+	compression_level = None,
 	**kwargs
 ):
 	import os
 
 	algorithm_map = {
-		'gzip': (lambda: __import__('gzip').compress, {'compresslevel': compression_level}),
-		'bzip2': (lambda: __import__('bz2').compress, {'compresslevel': compression_level}),
-		'lzma': (lambda: __import__('lzma').compress, {'preset': compression_level}),
-		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ, 'preset': compression_level}),
-		'zlib': (lambda: __import__('zlib').compress, {'level': compression_level}),
-		'lz4': (lambda: __import__('lz4.frame').frame.compress, {'compression_level': compression_level}),
-		'zstd': (lambda: __import__('zstandard').compress, {'level': compression_level}),
-		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC, 'quality': compression_level}),
+		'gzip': (lambda: __import__('gzip').compress, {}, {'compression_level': 'compresslevel'}),
+		'bzip2': (lambda: __import__('bz2').compress, {}, {'compression_level': 'compresslevel'}),
+		'lzma': (lambda: __import__('lzma').compress, {}, {'compression_level': 'preset'}),
+		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ}, {'compression_level': 'preset'}),
+		'zlib': (lambda: __import__('zlib').compress, {}, {'compression_level': 'level'}),
+		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}, {'compression_level': 'compression_level'}),
+		'zstd': (lambda: __import__('zstandard').compress, {}, {'compression_level': 'level'}),
+		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC}, {'compression_level': 'quality'}),
 	}
 
-	a_compress, additional_args = algorithm_map[algorithm]
+	a_compress, additional_args, slug_map = algorithm_map[algorithm]
 	a_compress = a_compress()
 
 	if callable(additional_args):
 		additional_args = additional_args()
+
+	if compression_level:
+		compression_slug = slug_map.get('compression_level')
+
+		if compression_slug:
+			additional_args[compression_slug] = compression_level
 
 	additional_args.update(kwargs)
 
@@ -998,13 +1009,50 @@ def compress(
 	try:
 		compress_file(stream if tar_in_memory else tar_path, output, a_compress, additional_args)
 	except (PermissionError, OSError, KeyboardInterrupt):
-		os.remove(output)
+		os.remove(output) # Raises the same if file is opened in another process (PermissionError)
 		raise
 
 	if not tar_in_memory:
 		os.remove(tar_path)
 
 	return output
+
+def is_brotli(data: bytes) -> bool:
+	"""
+	Determines whether a bytes object is Brotli-compressed.
+
+	Args:
+		data: Bytes object to check
+
+	Returns:
+		Tuple[bool, str]: (is_brotli, reason)
+		- is_brotli: True if data appears to be Brotli-compressed
+		- reason: Explanation of the determination
+	"""
+	if not isinstance(data, bytes):
+		return False
+
+	if len(data) < 4:
+		return False
+
+	# Check first byte (window size + WBITS)
+	first_byte = data[0]
+
+	# In Brotli, first byte contains:
+	# - bits 0-3: WBITS, window size is (1 << WBITS) - 16
+	# - bits 4-7: must be 0x0 to 0xD for valid Brotli data
+	wbits = first_byte & 0x0F
+	header_bits = (first_byte >> 4) & 0x0F
+
+	# Validate WBITS (10-24 are valid values)
+	if 10 >= wbits >= 24:
+		return False
+
+	# Validate header bits (0-13 are valid values)
+	if header_bits > 0x0D:
+		return False
+
+	return True
 
 def decompress(
 	source: bytes | str,
@@ -1018,7 +1066,7 @@ def decompress(
 		'zlib': (lambda: __import__('zlib').decompress, b'x'),
 		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
 		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
-		'brotli': (lambda: __import__('brotli').decompress, b'\x1b\xff'),
+		'brotli': (lambda: __import__('brotli').decompress, is_brotli),
 	}
 
 	is_bytes = isinstance(source, bytes)
@@ -1028,7 +1076,10 @@ def decompress(
 
 	if not algorithm:
 		for algo, (a_decompress, start_bytes) in algorithm_map.items():
-			if content.startswith(start_bytes):
+			if callable(start_bytes):
+				algorithm = algo if start_bytes(content) else None
+
+			elif content.startswith(start_bytes):
 				algorithm = algo
 				break
 
@@ -1041,7 +1092,7 @@ def decompress(
 		return a_decompress(source)
 
 	if not output:
-		output = source.split('.', 1)[0]
+		output = source.rsplit('.', 1)[0]
 
 	import tarfile, io
 
