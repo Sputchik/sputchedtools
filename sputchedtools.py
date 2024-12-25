@@ -900,6 +900,36 @@ class MC_Versions:
 		except ValueError:
 			return False
 
+def get_content(source: str | bytes | Buffer) -> tuple[int, bytes]:
+	"""
+	Returns source byte content
+	Source can be either a file_path, readable buffer or just bytes
+	First tuple object is source type:
+		1 - bytes
+		2 - buffer
+		3 - file path
+		...
+	"""
+
+	if isinstance(source, bytes):
+		return 1, source
+
+	elif hasattr(source, 'read'):
+		return 2, source.read()
+
+	else:
+		return 3, open(source, 'rb').read()
+
+def write_content(content: str | bytes | Buffer, output: str | Buffer) -> int:
+	_, content = get_content(content)
+
+	if hasattr(output, 'write'):
+		return output.write(content)
+	
+	else:
+		with open(output, 'wb') as f:
+			f.write(content)
+
 def make_tar(
 	source,
 	output,
@@ -947,7 +977,7 @@ def make_tar(
 def compress(
 	source: bytes | str,
 	algorithm: Algorithms = 'gzip',
-	output = None,
+	output: str | Buffer = None,
 	ignored_exceptions: type | tuple[type] = PermissionError,
 	tar_in_memory = True,
 	tar_if_file = False,
@@ -955,6 +985,7 @@ def compress(
 	check_algorithm_support = False,
 	**kwargs
 ) -> str | int | bytes:
+	
 	import os
 
 	algorithm_map = {
@@ -993,7 +1024,7 @@ def compress(
 
 	additional_args.update(kwargs)
 
-	is_out_buffer = hasattr(output, 'write') or isinstance(output, Buffer)
+	is_out_buffer = hasattr(output, 'write')
 	tar_in_memory = is_out_buffer or tar_in_memory
 
 	if not output:
@@ -1019,43 +1050,30 @@ def compress(
 
 	if is_out_buffer:
 		return output.write(compressed)
-	
+
 	with open(output, 'wb') as f:
 		f.write(compressed)
 		return output
 
 def is_brotli(data: bytes) -> bool:
-	"""
-	Determines whether a bytes object is Brotli-compressed.
+	'''
+	Don't use this
+	'''
 
-	Args:
-		data: Bytes object to check
-
-	Returns:
-		Tuple[bool, str]: (is_brotli, reason)
-		- is_brotli: True if data appears to be Brotli-compressed
-		- reason: Explanation of the determination
-	"""
 	if not isinstance(data, bytes):
 		return False
 
 	if len(data) < 4:
 		return False
 
-	# Check first byte (window size + WBITS)
 	first_byte = data[0]
 
-	# In Brotli, first byte contains:
-	# - bits 0-3: WBITS, window size is (1 << WBITS) - 16
-	# - bits 4-7: must be 0x0 to 0xD for valid Brotli data
 	wbits = first_byte & 0x0F
 	header_bits = (first_byte >> 4) & 0x0F
 
-	# Validate WBITS (10-24 are valid values)
 	if 10 >= wbits >= 24:
 		return False
 
-	# Validate header bits (0-13 are valid values)
 	if header_bits > 0x0D:
 		return False
 
@@ -1064,7 +1082,7 @@ def is_brotli(data: bytes) -> bool:
 def decompress(
 	source: bytes | str,
 	algorithm: Algorithms = None,
-	output: str = None
+	output: str | Buffer = None
 ):
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
@@ -1104,6 +1122,10 @@ def decompress(
 	import tarfile, io
 
 	decompressed = a_decompress(content)
+
+	if hasattr(output, 'write'):
+		return output.write(decompressed)
+
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
