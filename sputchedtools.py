@@ -1,5 +1,5 @@
 from typing import Literal
-from collections.abc import Iterator, Iterable, Buffer
+from collections.abc import Iterator, Iterable
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
@@ -37,6 +37,7 @@ class Anim:
 
 		self.terminal_size = self.get_terminal_size().columns
 		self.chars = self.adapt_chars_spaces(self.chars)
+		self.char = self.chars[0]
 		self.done = False
 
 	def get_line(self):
@@ -451,10 +452,7 @@ class aio:
 		except asyncio.TimeoutError:
 			return_items.insert(0, 0)
 
-		except asyncio.CancelledError:
-			return
-
-		except:
+		except (Exception, asyncio.CancelledError):
 			if raise_exceptions:
 				raise
 
@@ -900,7 +898,7 @@ class MC_Versions:
 		except ValueError:
 			return False
 
-def get_content(source: str | bytes | Buffer) -> tuple[int, bytes]:
+def get_content(source: str | bytes) -> tuple[int, bytes]:
 	"""
 	Returns source byte content
 	Source can be either a file_path, readable buffer or just bytes
@@ -920,7 +918,7 @@ def get_content(source: str | bytes | Buffer) -> tuple[int, bytes]:
 	else:
 		return 3, open(source, 'rb').read()
 
-def write_content(content: str | bytes | Buffer, output: str | Buffer) -> int:
+def write_content(content: str | bytes, output) -> int:
 	_, content = get_content(content)
 
 	if hasattr(output, 'write'):
@@ -977,14 +975,14 @@ def make_tar(
 def compress(
 	source: bytes | str,
 	algorithm: Algorithms = 'gzip',
-	output: str | Buffer = None,
+	output = None,
 	ignored_exceptions: type | tuple[type] = PermissionError,
 	tar_in_memory = True,
 	tar_if_file = False,
 	compression_level = None,
 	check_algorithm_support = False,
 	**kwargs
-) -> str | int | bytes:
+) -> int:
 	
 	import os
 
@@ -1052,8 +1050,7 @@ def compress(
 		return output.write(compressed)
 
 	with open(output, 'wb') as f:
-		f.write(compressed)
-		return output
+		return f.write(compressed)
 
 def is_brotli(data: bytes) -> bool:
 	'''
@@ -1082,7 +1079,8 @@ def is_brotli(data: bytes) -> bool:
 def decompress(
 	source: bytes | str,
 	algorithm: Algorithms = None,
-	output: str | Buffer = None
+	output = None,
+	**kwargs
 ):
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
@@ -1109,14 +1107,13 @@ def decompress(
 		raise ValueError(f"Couldn't detect algorithm for decompression, start bytes: {content[:10]}")
 
 	a_decompress = algorithm_map[algorithm][0]()
+	decompressed = a_decompress(content, **kwargs)
 
 	if hasattr(output, 'write'):
 		return output.write(decompressed)
 	
 	if not output:
 		output = source.rsplit('.', 1)[0]
-
-	decompressed = a_decompress(content)
 	
 	import tarfile, io
 	stream = io.BytesIO(decompressed)
