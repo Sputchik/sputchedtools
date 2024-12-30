@@ -1,6 +1,6 @@
 from typing import Literal
 from collections.abc import Iterator, Iterable
-
+aaaa
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
 algorithms = ['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
@@ -1006,7 +1006,7 @@ def compress(
 			a_compress()
 			return True
 
-		except ImportError:
+		except:# ImportError
 			return False
 
 	a_compress = a_compress()
@@ -1040,6 +1040,8 @@ def compress(
 
 		else:
 			tar_path = '' if tar_in_memory else output + '.tar'
+			if isinstance(output, str) and os.path.exists(output):
+				os.remove(output)
 			stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
 			compressed = a_compress(stream if tar_in_memory else tar_path, **additional_args)
 
