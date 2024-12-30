@@ -1,8 +1,10 @@
 from typing import Literal
 from collections.abc import Iterator, Iterable
-aaaa
+
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
+RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
+
 algorithms = ['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
 
 class Anim:
@@ -129,6 +131,7 @@ class Anim:
 
 		else:
 			self.thread = self.Thread(target=self.anim)
+			self.thread.daemon = True
 			self.thread.start()
 
 		return self
@@ -150,18 +153,16 @@ class NewLiner:
 	"""
 
 	def __init__(self):
-		self.out = __import__('sys').stdout
+		pass
 
 	def __enter__(self):
-		self.out.write('\n')
-		self.out.flush()
+		print(flush = True)
 
 	def __exit__(self, exc_type, exc_value, exc_traceback):
 		if exc_type:
 			raise exc_value.with_traceback(exc_traceback)
 
-		self.out.write('\n')
-		self.out.flush()
+		print(flush = True)
 
 class Timer:
 
@@ -177,18 +178,21 @@ class Timer:
 
 	"""
 
-	def __init__(self, txt = '', echo = True):
+	def __init__(self, echo = True, prepend = '\nTaken time:', append = ''):
 		from time import perf_counter
 		self.time = perf_counter
-		self.echo = echo
+		
+		args = (prepend, append, echo)
 
-		if isinstance(txt, bool):
-			self.echo = txt
-			self.txt = echo if isinstance(echo, str) else ''
+		for arg in args:
+			if isinstance(arg, bool):
+				self.echo = arg
 
-		else:
-			self.txt = txt
-			self.echo = echo
+			elif isinstance(arg, str):
+				if not hasattr(self, 'prepend'):
+					self.prepend = arg
+				else:
+					self.append = arg
 
 	def __enter__(self):
 		self.was = self.time()
@@ -200,7 +204,9 @@ class Timer:
 
 		self.diff = self.time() - self.was
 		self.formatted_diff = num.decim_round(self.diff, -1)
-		if self.echo: print(f'\nTaken time: {self.formatted_diff}s {self.txt}')
+
+		if getattr(self, 'echo', True):
+			print(f'{self.prepend} {self.formatted_diff}s {self.append}')
 
 		return self.formatted_diff
 
@@ -210,7 +216,7 @@ class ProgressBar:
 		iterator: Iterator | Iterable,
 		text: str = 'Processing...',
 		task_amount: int = None,
-		final_text: str = "Done"
+		final_text: str = "Done\n"
 	):
 
 		if iterator and not isinstance(iterator, Iterator):
@@ -271,7 +277,7 @@ class ProgressBar:
 		self.sflush()
 
 	def finish(self):
-		self.finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}\n'
+		self.finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
 		self.swrite(self.finish_message)
 		self.sflush()
 
@@ -280,7 +286,7 @@ class AsyncProgressBar:
 		self,
 		text: str,
 		task_amount: int = None,
-		final_text: str = "Done",
+		final_text: str = "Done\n",
 		tasks = None
 	):
 		import asyncio
@@ -322,14 +328,13 @@ class AsyncProgressBar:
 	async def _finish(self):
 
 		if self.task_amount is not None:
-			self.finish_message = f'\r{self.text} {self.completed_tasks}/{self.task_amount} {self.final_text}\n'
+			self.finish_message = f'\r{self.text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
 
 		else:
-			self.finish_message = f'\r{self.text} {self.completed_tasks} {self.final_text}\n'
+			self.finish_message = f'\r{self.text} {self.completed_tasks} {self.final_text}'
 
 		self.swrite(self.finish_message)
 		self.sflush()
-		self.completed_tasks = 0
 
 	async def as_completed(self, tasks):
 
@@ -375,7 +380,7 @@ class aio:
 
 	@staticmethod
 	async def _request(
-		method: Literal['GET', 'POST'],
+		method: RequestMethods,
 		url: str,
 		toreturn: ReturnTypes = 'text',
 		session = None,
@@ -452,7 +457,7 @@ class aio:
 		except asyncio.TimeoutError:
 			return_items.insert(0, 0)
 
-		except (Exception, asyncio.CancelledError):
+		except (Exception, BaseException):
 			if raise_exceptions:
 				raise
 
@@ -923,10 +928,10 @@ def write_content(content: str | bytes, output) -> int:
 
 	if hasattr(output, 'write'):
 		return output.write(content)
-	
+
 	else:
 		with open(output, 'wb') as f:
-			f.write(content)
+			return f.write(content)
 
 def make_tar(
 	source,
@@ -983,7 +988,7 @@ def compress(
 	check_algorithm_support = False,
 	**kwargs
 ) -> int:
-	
+
 	import os
 
 	algorithm_map = {
@@ -1113,17 +1118,17 @@ def decompress(
 
 	if hasattr(output, 'write'):
 		return output.write(decompressed)
-	
+
 	if not output:
 		output = source.rsplit('.', 1)[0]
-	
+
 	import tarfile, io
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
 		with tarfile.open(fileobj=stream) as tar:
 			tar.extractall(output)
-	
+
 	else:
 		with open(output, 'wb') as f:
 			f.write(decompressed)
