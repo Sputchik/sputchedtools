@@ -19,7 +19,7 @@ pip install sputchedtools
 
 ### Asynchronous Operations
 - `aio` class with methods:
-	- _request() - `aiohttp`/`httpx`/`niquests` Manually-specified request
+	- `_request()` - `aiohttp`/`httpx`/`niquests` Manually-specified request
 	- `request()` - `aiohttp`/`httpx`/`niquests` GET requests
 	- `post()` - `aiohttp`/`httpx`/`niquests` POST requests
 	- `open()` - `aiofiles` file operations
