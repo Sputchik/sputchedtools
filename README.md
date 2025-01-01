@@ -19,8 +19,9 @@ pip install sputchedtools
 
 ### Asynchronous Operations
 - `aio` class with methods:
-	- `request()` - `aiohttp`/`httpx` GET requests
-	- `post()` - `aiohttp`/`httpx` POST requests
+	- _request() - `aiohttp`/`httpx`/`niquests` Manually-specified request
+	- `request()` - `aiohttp`/`httpx`/`niquests` GET requests
+	- `post()` - `aiohttp`/`httpx`/`niquests` POST requests
 	- `open()` - `aiofiles` file operations
 	- `sem_task()` - Semaphore-controlled task execution
 
@@ -41,9 +42,9 @@ pip install sputchedtools
 - `MC_Versions` - Minecraft version manifest handling - Version sorting, list to stringified range converter
 
 ### Compression Tools
-- `compress()` - File/Directory/Bytes compression with multiple algorithms:
+- `compress()` - File/Directory/Stream/Bytes compression with multiple algorithms:
 	- gzip, bzip2, lzma, zlib, lz4, zstd, brotli
-- `decompress()` - Auto-detective File/Directory/Bytes decompression
+- `decompress()` - Auto-algo-detective File/Directory/Stream/Bytes decompression
 
 ## Usage Example
 
