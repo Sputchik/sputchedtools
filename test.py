@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.13
 from sputchedtools import *
 import asyncio, random, aiohttp, httpx, os, shutil
 

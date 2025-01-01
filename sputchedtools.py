@@ -181,9 +181,9 @@ class Timer:
 	def __init__(self, echo = True, prepend = '\nTaken time:', append = ''):
 		from time import perf_counter
 		self.time = perf_counter
-		
-		args = (prepend, append, echo)
+		self.echo = True
 
+		args = (prepend, append, echo)
 		for arg in args:
 			if isinstance(arg, bool):
 				self.echo = arg
@@ -193,7 +193,7 @@ class Timer:
 					self.prepend = arg
 				else:
 					self.append = arg
-
+		
 	def __enter__(self):
 		self.was = self.time()
 		return self
@@ -386,8 +386,9 @@ class aio:
 		session = None,
 		raise_exceptions = False,
 		httpx = False,
+		niquests = False,
 		**kwargs,
-	):
+	) -> list:
 
 		"""
 
@@ -419,6 +420,10 @@ class aio:
 			if httpx:
 				import httpx
 				ses = httpx.AsyncClient(http2 = True, follow_redirects = True)
+
+			elif niquests:
+				import niquests
+				ses = niquests.AsyncSession(multiplexed = True, disable_http1 = True, disable_http2 = True, disable_ipv6 = True)
 
 			else:
 				import aiohttp
@@ -480,9 +485,10 @@ class aio:
 		session = None,
 		raise_exceptions = False,
 		httpx = False,
+		niquests = False,
 		**kwargs,
-	):
-		return await aio._request('GET', url, toreturn, session, raise_exceptions, httpx, **kwargs)
+	) -> list:
+		return await aio._request('GET', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
 	async def post(
@@ -491,9 +497,10 @@ class aio:
 		session = None,
 		raise_exceptions = False,
 		httpx = False,
+		niquests = False,
 		**kwargs,
-	):
-		return await aio._request('POST', url, toreturn, session, raise_exceptions, httpx, **kwargs)
+	) -> list:
+		return await aio._request('POST', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
 	async def open(
@@ -502,7 +509,7 @@ class aio:
 		mode: str = 'r',
 		content = None,
 		**kwargs
-	):
+	) -> int:
 
 		"""
 
@@ -911,6 +918,8 @@ def get_content(source: str | bytes) -> tuple[int, bytes]:
 		1 - bytes
 		2 - buffer
 		3 - file path
+		4 - folder path
+		None - unknown
 		...
 	"""
 
@@ -921,13 +930,24 @@ def get_content(source: str | bytes) -> tuple[int, bytes]:
 		return 2, source.read()
 
 	else:
-		return 3, open(source, 'rb').read()
+		import os
 
-def write_content(content: str | bytes, output) -> int:
+		if os.path.isfile(source):
+			return 3, open(source, 'rb').read()
+
+		elif os.path.isdir(source):
+			return 4, source
+
+		return None, None
+
+def write_content(content: str | bytes, output) -> int | bytes:
 	_, content = get_content(content)
 
 	if hasattr(output, 'write'):
 		return output.write(content)
+
+	elif output is False:
+		return content
 
 	else:
 		with open(output, 'wb') as f:
@@ -987,7 +1007,7 @@ def compress(
 	compression_level = None,
 	check_algorithm_support = False,
 	**kwargs
-) -> int:
+) -> int | bytes:
 
 	import os
 
@@ -1031,7 +1051,10 @@ def compress(
 	tar_in_memory = is_out_buffer or tar_in_memory
 
 	if not output:
-		output = os.path.basename(os.path.abspath(source)) + f'.{algorithm}'
+		if os.path.exists(source):
+			output = os.path.basename(os.path.abspath(source)) + f'.{algorithm}'
+		else:
+			output = bytes
 
 	if isinstance(source, bytes):
 		compressed = a_compress(
@@ -1047,17 +1070,14 @@ def compress(
 			tar_path = '' if tar_in_memory else output + '.tar'
 			if isinstance(output, str) and os.path.exists(output):
 				os.remove(output)
+
 			stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
 			compressed = a_compress(stream if tar_in_memory else tar_path, **additional_args)
 
 			if not tar_in_memory:
 				os.remove(tar_path)
 
-	if is_out_buffer:
-		return output.write(compressed)
-
-	with open(output, 'wb') as f:
-		return f.write(compressed)
+	write_content(compressed, output)
 
 def is_brotli(data: bytes) -> bool:
 	'''
@@ -1088,7 +1108,8 @@ def decompress(
 	algorithm: Algorithms = None,
 	output = None,
 	**kwargs
-):
+) -> int | str | bytes:
+
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
 		'bzip2': (lambda: __import__('bz2').decompress, b'BZh'),
@@ -1116,13 +1137,17 @@ def decompress(
 	a_decompress = algorithm_map[algorithm][0]()
 	decompressed = a_decompress(content, **kwargs)
 
-	if hasattr(output, 'write'):
+	if output is False:
+		return decompressed
+
+	elif hasattr(output, 'write'):
 		return output.write(decompressed)
 
-	if not output:
+	import tarfile, io
+
+	if output is None:
 		output = source.rsplit('.', 1)[0]
 
-	import tarfile, io
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
