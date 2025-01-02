@@ -8,7 +8,7 @@ async def aio_test():
 		toreturn = [
 			val for val in dir(aiohttp.ClientResponse) if not val.startswith('_')
 		],
-		raise_exceptions = True
+		raise_exceptions = False
 	)
 
 	for data in ProgressBar(response, text = 'Processing aio data...'):
@@ -22,7 +22,7 @@ async def aiox_test():
 			val for val in dir(httpx.Response) if not val.startswith('_')
 		],
 		httpx = True,
-		raise_exceptions = True
+		raise_exceptions = False
 	)
 
 	for data in ProgressBar(response, text = 'Processing httpx data...'):

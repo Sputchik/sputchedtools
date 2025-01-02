@@ -423,7 +423,7 @@ class aio:
 
 			elif niquests:
 				import niquests
-				ses = niquests.AsyncSession(multiplexed = True, disable_http1 = True, disable_http2 = True, disable_ipv6 = True)
+				ses = niquests.AsyncSession(disable_http1 = True, disable_http2 = True, disable_ipv6 = True)
 
 			else:
 				import aiohttp
@@ -441,7 +441,9 @@ class aio:
 
 		try:
 			response = await ses.request(method, url, **kwargs)
-
+			if toreturn[0] == 'response':
+				return response
+			
 			for item in toreturn:
 
 				try:
@@ -455,6 +457,9 @@ class aio:
 						result = await result
 
 				except:
+					if raise_exceptions:
+						raise
+
 					result = None
 
 				return_items.append(result)
