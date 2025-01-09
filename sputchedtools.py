@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.13
 from typing import Literal
 from collections.abc import Iterator, Iterable
 
@@ -147,8 +148,7 @@ class Anim:
 class NewLiner:
 
 	"""
-
-	Simply adds a new line before and after the block of code.
+	Simply adds a new line before and after the block of code
 
 	"""
 
@@ -167,7 +167,6 @@ class NewLiner:
 class Timer:
 
 	"""
-
 	Accepts (order doesn't matter from 0.16.2):
 
 		txt: str = '': text after main print message
@@ -181,26 +180,17 @@ class Timer:
 	def __init__(self, echo = True, prepend = '\nTaken time:', append = ''):
 		from time import perf_counter
 		self.time = perf_counter
-		self.echo = True
+		self.echo = echo
+		self.prepend = prepend
+		self.append = append
 
-		args = (prepend, append, echo)
-		for arg in args:
-			if isinstance(arg, bool):
-				self.echo = arg
-
-			elif isinstance(arg, str):
-				if not hasattr(self, 'prepend'):
-					self.prepend = arg
-				else:
-					self.append = arg
-		
 	def __enter__(self):
 		self.was = self.time()
 		return self
 
-	def __exit__(self, exc_type, exc_value, exc_traceback):
-		if exc_type:
-			raise exc_value.with_traceback(exc_traceback)
+	def __exit__(self, *excep_args):
+		if all(excep_args):
+			raise excep_args[1].with_traceback(excep_args[2])
 
 		self.diff = self.time() - self.was
 		self.formatted_diff = num.decim_round(self.diff, -1)
@@ -369,13 +359,11 @@ class AsyncProgressBar:
 class aio:
 
 	"""
-
 	Methods:
 		- aio.request() - 'GET' wrapper for aio._request
 		- aio.post() - 'POST' wrapper for aio._request
 		- aio.open() - aiofiles.open() method
 		- aio.sem_task() - uses received semaphore to return function execution result
-
 	"""
 
 	@staticmethod
@@ -391,7 +379,6 @@ class aio:
 	) -> list:
 
 		"""
-
 		Accepts:
 
 			- method: `GET` or `POST` request type
@@ -411,7 +398,6 @@ class aio:
 			- Request Timeout: [0, *toreturn]
 			- Cancelled Error: [None, *toreturn]
 			- Exception: Raise if raise_exceptions else return_items + None * ( len(toreturn) - len(existing_items) )
-
 		"""
 
 		import asyncio, inspect
@@ -443,7 +429,7 @@ class aio:
 			response = await ses.request(method, url, **kwargs)
 			if toreturn[0] == 'response':
 				return response
-			
+
 			for item in toreturn:
 
 				try:
@@ -517,7 +503,6 @@ class aio:
 	) -> int:
 
 		"""
-
 		Accepts:
 
 			- file: str - File path
@@ -578,7 +563,6 @@ def enhance_loop() -> bool:
 class num:
 
 	"""
-
 	Methods:
 
 		- num.shorten() - Shortens float | int value, using expandable / editable num.suffixes dictionary
@@ -592,7 +576,6 @@ class num:
 
 		- num.beautify() - returns decimal-rounded, shortened float-like string
 			Example: num.beautify(4349.567, -1) -> 4.35K
-
 	"""
 
 	suffixes = ['', 'K', 'M', 'B', 'T', 1000]
@@ -609,7 +592,6 @@ class num:
 	) -> str:
 
 		"""
-
 		Accepts:
 
 			- value: int - big value
@@ -640,7 +622,6 @@ class num:
 	) -> float | int:
 
 		"""
-
 		Accepts:
 
 			- value: str - int-like value with shortener at the end
@@ -680,7 +661,6 @@ class num:
 	) -> str:
 
 		"""
-
 		Accepts:
 
 			- value: float - usually with medium-big decimal length
@@ -747,7 +727,6 @@ class num:
 class Web3Misc:
 
 	"""
-
 	Methods:
 		- gas_monitor()
 		- gas_price_monitor()
@@ -919,13 +898,15 @@ def get_content(source: str | bytes) -> tuple[int, bytes]:
 	"""
 	Returns source byte content
 	Source can be either a file_path, readable buffer or just bytes
+
 	First tuple object is source type:
 		1 - bytes
-		2 - buffer
+		2 - readable buffer
 		3 - file path
-		4 - folder path
+		4 - folder path (str)
 		None - unknown
 		...
+
 	"""
 
 	if isinstance(source, bytes):
@@ -986,15 +967,15 @@ def make_tar(
 					file_path = os.path.join(root, file)
 					file_rel_path = os.path.relpath(file_path, source)
 
-					with open(file_path, 'rb') as file_buffer:
-						try:
+					try:
+						with open(file_path, 'rb') as file_buffer:
 							file_buffer.peek()
 
-						except ignore_errors:
-							continue
-
-						info = tar.gettarinfo(arcname=file_rel_path, fileobj=file_buffer)
 						tar.addfile(info, file_buffer)
+						info = tar.gettarinfo(arcname=file_rel_path, fileobj=file_buffer)
+
+					except ignore_errors:
+						continue
 
 	if in_memory:
 		stream.seek(0)
@@ -1013,8 +994,6 @@ def compress(
 	check_algorithm_support = False,
 	**kwargs
 ) -> int | bytes:
-
-	import os
 
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').compress, {}, {'compression_level': 'compresslevel'}),
@@ -1054,12 +1033,13 @@ def compress(
 
 	is_out_buffer = hasattr(output, 'write')
 	tar_in_memory = is_out_buffer or tar_in_memory
+	import os
 
 	if not output:
-		if os.path.exists(source):
+		if isinstance(source, str) and os.path.exists(source):
 			output = os.path.basename(os.path.abspath(source)) + f'.{algorithm}'
 		else:
-			output = bytes
+			output = False
 
 	if isinstance(source, bytes):
 		compressed = a_compress(
@@ -1082,7 +1062,7 @@ def compress(
 			if not tar_in_memory:
 				os.remove(tar_path)
 
-	write_content(compressed, output)
+	return write_content(compressed, output)
 
 def is_brotli(data: bytes) -> bool:
 	'''
@@ -1148,6 +1128,7 @@ def decompress(
 	elif hasattr(output, 'write'):
 		return output.write(decompressed)
 
+	# Assuming output is a path
 	import tarfile, io
 
 	if output is None:

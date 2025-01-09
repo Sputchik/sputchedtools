@@ -1,10 +1,10 @@
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 
 readme = open('README.md', 'r').read()
 
 setup(
 	name = 'sputchedtools',
-	version = '0.25.13',
+	version = '0.25.17',
 	packages = find_packages(),
 	py_modules = ['sputchedtools', 'sptz'],
 	install_requires = [
