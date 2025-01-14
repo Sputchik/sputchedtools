@@ -6,7 +6,7 @@ ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'cont
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 
-algorithms = ['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
+algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
 class Anim:
 	def __init__(
@@ -177,26 +177,26 @@ class Timer:
 
 	"""
 
-	def __init__(self, echo = True, prepend = '\nTaken time:', append = ''):
+	def __init__(self, echo = True, prep = '\nTaken time:', app = ''):
 		from time import perf_counter
 		self.time = perf_counter
 		self.echo = echo
-		self.prepend = prepend
-		self.append = append
+		self.prep = prep
+		self.app = app
 
 	def __enter__(self):
 		self.was = self.time()
 		return self
 
-	def __exit__(self, *excep_args):
-		if all(excep_args):
-			raise excep_args[1].with_traceback(excep_args[2])
+	def __exit__(self, exc_type, exc_value, exc_traceback):
+		if exc_type:
+			raise exc_value.with_traceback(exc_traceback)
 
 		self.diff = self.time() - self.was
 		self.formatted_diff = num.decim_round(self.diff, -1)
 
-		if getattr(self, 'echo', True):
-			print(f'{self.prepend} {self.formatted_diff}s {self.append}')
+		if self.echo:
+			print(f'{self.prep} {self.formatted_diff}s {self.app}')
 
 		return self.formatted_diff
 
@@ -327,6 +327,7 @@ class AsyncProgressBar:
 		self.sflush()
 
 	async def as_completed(self, tasks):
+		self.update(0)
 
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
@@ -336,6 +337,7 @@ class AsyncProgressBar:
 		await self._finish()
 
 	async def gather(self, tasks):
+		self.update(0)
 		results = []
 
 		for task in self.asyncio.as_completed(tasks):
@@ -360,14 +362,15 @@ class aio:
 
 	"""
 	Methods:
-		- aio.request() - 'GET' wrapper for aio._request
-		- aio.post() - 'POST' wrapper for aio._request
+		- aio.get() - 'GET' wrapper for aio.request
+		- aio.post() - 'POST' wrapper for aio.request
+		- aio.request() - ikyk
 		- aio.open() - aiofiles.open() method
 		- aio.sem_task() - uses received semaphore to return function execution result
 	"""
 
 	@staticmethod
-	async def _request(
+	async def _request( # Pending change to `request`
 		method: RequestMethods,
 		url: str,
 		toreturn: ReturnTypes = 'text',
@@ -409,7 +412,7 @@ class aio:
 
 			elif niquests:
 				import niquests
-				ses = niquests.AsyncSession(disable_http1 = True, disable_http2 = True, disable_ipv6 = True)
+				ses = niquests.AsyncSession()
 
 			else:
 				import aiohttp
@@ -470,7 +473,7 @@ class aio:
 		return return_items
 
 	@staticmethod
-	async def request(
+	async def get(
 		url: str = 'https://example.com/',
 		toreturn: ReturnTypes = 'text',
 		session = None,
@@ -480,7 +483,7 @@ class aio:
 		**kwargs,
 	) -> list:
 		return await aio._request('GET', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
-
+	
 	@staticmethod
 	async def post(
 		url: str = 'https://example.com/',
@@ -971,8 +974,8 @@ def make_tar(
 						with open(file_path, 'rb') as file_buffer:
 							file_buffer.peek()
 
-						tar.addfile(info, file_buffer)
-						info = tar.gettarinfo(arcname=file_rel_path, fileobj=file_buffer)
+							info = tar.gettarinfo(arcname=file_rel_path, fileobj=file_buffer)
+							tar.addfile(info, file_buffer)
 
 					except ignore_errors:
 						continue
@@ -987,7 +990,7 @@ def compress(
 	source: bytes | str,
 	algorithm: Algorithms = 'gzip',
 	output = None,
-	ignored_exceptions: type | tuple[type] = PermissionError,
+	ignored_exceptions: type | tuple[type] = (PermissionError, OSError),
 	tar_in_memory = True,
 	tar_if_file = False,
 	compression_level = None,
@@ -1128,6 +1131,9 @@ def decompress(
 	elif hasattr(output, 'write'):
 		return output.write(decompressed)
 
+	elif output is None:
+		output = './'
+	
 	# Assuming output is a path
 	import tarfile, io
 
@@ -1145,3 +1151,5 @@ def decompress(
 			f.write(decompressed)
 
 	return output
+
+aio.request = aio.get # Pending removal
