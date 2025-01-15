@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v4 
         with:
           python-version: '3.x'
 
@@ -29,12 +29,13 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_ARCHS_WINDOWS: "AMD64 x86"
+          CIBW_BEFORE_ALL_LINUX: >
+            if command -v apt-get >/dev/null; then
+              apt-get update && apt-get install -y python3-dev build-essential
+            elif command -v yum >/dev/null; then
+              yum install -y python3-devel gcc gcc-c++
+            fi
           CIBW_ENVIRONMENT: "CYTHONIZE=1"
-          # Force test skip and prevent automatic test running
-          # CIBW_TEST_SKIP: "*"
-          # CIBW_TEST_COMMAND: ""
-          # CIBW_TEST_REQUIRES: ""
-
         run: cibuildwheel --output-dir dist
 
       - uses: actions/upload-artifact@v3

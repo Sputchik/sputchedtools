@@ -3,10 +3,7 @@ requires = ["setuptools>=42", "wheel", "Cython>=3.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-skip = ["pp*"]  # Only skip PyPy as we already handle Python versions in workflow
-
-[tool.cibuildwheel.linux]
-before-all = "apt-get update && apt-get install -y python3-dev build-essential"
+skip = ["pp*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
