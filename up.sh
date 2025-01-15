@@ -1,12 +1,13 @@
-rm -f dist/*
-rm -rf __pycache__
-rm -rf build
-rm -rf sputchedtools.egg-info
+rm -rf dist __pycache__ build sputchedtools.egg-info
 
-python3 setup.py sdist bdist_wheel
+# Build Cythonized wheel
+CYTHONIZE=1 python3 setup.py -wn
+
+# Build regular wheel
+python3 setup.py -wn
+
+# Build source distribution
+python3 setup.py -sn
 twine upload dist/*
 
-rm -f dist/*
-rm -rf __pycache__
-rm -rf build
-rm -rf sputchedtools.egg-info
+rm -rf dist __pycache__ build sputchedtools.egg-info *.c *.in

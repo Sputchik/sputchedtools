@@ -1,0 +1,45 @@
+name: Build Wheels
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4 
+        with:
+          python-version: '3.x'
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build cython wheel setuptools twine
+
+      - name: Build Cythonized wheel
+        env:
+          CYTHONIZE: 1
+        run: python -m build -wn
+
+      - name: Build regular wheel
+        run: python -m build -wn
+
+      - name: Build source distribution
+        run: python -m build -sn
+
+      - uses: actions/upload-artifact@v3
+        with:
+          path: |
+            dist/*.whl
+            dist/*.tar.gz

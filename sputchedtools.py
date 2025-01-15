@@ -1,22 +1,243 @@
-#!/usr/bin/env python3.13
-from typing import Literal
+# cython: language_level=3
+
+from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO
 from collections.abc import Iterator, Iterable
+from dataclasses import dataclass
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
-Algorithms = Literal['gzip', 'bzip2', 'lzma', 'deflate', 'lz4', 'zstd', 'brotli']
+Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
+# ----------------CLASSES-----------------
+
+@dataclass
+class TimerLap:
+	start: float
+	end: float
+	name: str = ""
+
+class Timer:
+	"""
+	Code execution Timer
+
+	Format variables:
+		%s  - seconds
+		%ms - milliseconds
+		%us - microseconds
+		%n  - lap name (if using laps)
+
+	"""
+
+	def __init__(
+		self,
+		echo_fmt: Optional[str] = "Taken time: %s",
+		append_fmt: bool = True
+	):
+
+		from time import perf_counter
+
+		self.time = perf_counter
+		self.echo_fmt = echo_fmt
+		self.append_fmt = append_fmt
+		self.time_fmts = ['s', 'ms', 'us']
+		self.mps = [1] + [1000**i for i in range(1, len(self.time_fmts))]
+		self.laps: list[TimerLap] = []
+
+	def __enter__(self) -> 'Timer':
+		self._start_time = self._last_lap = self.time()
+		return self
+
+	def lap(self, name: str = "") -> float:
+		now = self.time()
+		lap_time = TimerLap(self._last_lap, now, name)
+		self.laps.append(lap_time)
+		self._last_lap = now
+
+		return now - self._last_lap
+
+	def format_output(self, seconds: float) -> str:
+		fmt = self.echo_fmt
+
+		for mp, unit in zip(self.mps, self.time_fmts):
+			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}" if self.append_fmt else '', 1)
+
+		return fmt
+
+	def __exit__(self, *exc_args):
+		end_time = self.time()
+		self.diff = end_time - self._start_time
+
+		if self.echo_fmt:
+			print(self.format_output(self.diff))
+
+		return self.diff
+
+	async def __aenter__(self) -> 'Timer':
+		return self.__enter__()
+
+	async def __aexit__(self, *exc_args):
+		return self.__exit__(*exc_args)
+
+class NewLiner:
+
+	"""
+	Simply adds a new line before and after the block of code
+
+	"""
+
+	def __init__(self):
+		pass
+
+	def __enter__(self):
+		print(flush = True)
+
+	def __exit__(self, *exc):
+		print(flush = True)
+
+class ProgressBar:
+	def __init__(
+		self,
+		iterator: Optional[Union[Iterator[Any], Iterable[Any]]] = None,
+		text: str = 'Processing...',
+		task_amount: Optional[int] = None,
+		final_text: str = "Done\n",
+		tasks: Optional[Iterable[Any]] = None
+	):
+
+		if iterator and not isinstance(iterator, Iterator):
+			if not hasattr(iterator, '__iter__'):
+				raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+			self.iterator = iterator.__iter__()
+		else:
+			self.iterator = iterator
+
+		if task_amount is None:
+			if iterator and not hasattr(iterator, '__len__'):
+				raise AttributeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
+			elif tasks and not hasattr(tasks, '__len__'):
+				raise AttributeError(f"You didn't provide task_amount for Async Iterator\n\nType: {type(tasks)}\nAttrs: {dir(tasks)}")
+			elif iterator:
+				self.task_amount = iterator.__len__()
+			elif tasks:
+				self.task_amount = tasks.__len__()
+		else:
+			self.task_amount = task_amount
+
+		import asyncio
+		from sys import stdout
+
+		self.asyncio = asyncio
+		self.flush = lambda k: stdout.write(k); stdout.flush()
+		self._text = text
+		self.completed_tasks = 0
+		self.final_text = final_text
+
+		if tasks:
+			if hasattr(tasks, '__aiter__'):
+				self.tasks = tasks
+			else:
+				raise ValueError("tasks must be an async iterator or None")
+
+	@property
+	def text(self) -> str:
+		return self._text
+
+	@text.setter
+	def text(self, value: str):
+		val_len = len(value)
+		text_len = len(self._text)
+		self._text = value + ' ' * (text_len - val_len if text_len > val_len else 0)
+
+	def __iter__(self) -> 'ProgressBar':
+		self.update(0)
+		return self
+
+	def __next__(self) -> Any:
+		try:
+			item = next(self.iterator)
+			self.update()
+			return item
+		except StopIteration:
+			self.finish()
+			raise
+
+	async def __aiter__(self) -> 'ProgressBar':
+		if not hasattr(self, 'tasks'):
+			raise ValueError("You didn't specify coroutine iterator")
+		self.update(0)
+		return self
+
+	async def __anext__(self) -> Any:
+		try:
+			task = await self.tasks.__anext__()
+			await self.update()
+			return task
+		except StopAsyncIteration:
+			await self.finish()
+			raise
+
+	def __enter__(self) -> 'ProgressBar':
+		self.update(0)
+		return self
+
+	async def __aenter__(self) -> 'ProgressBar':
+		self.update(0)
+		return self
+
+	def update(self, increment: int = 1):
+		self.completed_tasks += increment
+		self.print_progress()
+
+	async def aupdate(self, increment: int = 1):
+		self.completed_tasks += increment
+		self.print_progress()
+
+	def print_progress(self):
+		self.flush(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
+
+	async def gather(self, tasks: Iterable[Coroutine]) -> list[Any]:
+		self.update(0)
+		results = []
+
+		for task in self.asyncio.as_completed(tasks):
+			result = await task
+			await self.aupdate()
+			results.append(result)
+
+		self.finish()
+		return results
+
+	async def as_completed(self, tasks: Iterable[Coroutine]):
+		self.update(0)
+
+		for task in self.asyncio.as_completed(tasks):
+			result = await task
+			await self.aupdate()
+			yield result
+
+		self.finish()
+
+	def finish(self):
+		self.finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
+		self.flush(self.finish_message)
+
+	def __exit__(self, *exc):
+		self.finish()
+
+	async def __aexit__(self, *exc):
+		self.finish()
+
 class Anim:
 	def __init__(
 		self,
-		prepend_text = '', append_text = '',
-		just_clear_char = True,
-		clear_on_exit = False,
-		delay = 0.03,
-		manual_update = False,
-		chars = None
+		prepend_text: str = '', append_text: str = '',
+		just_clear_char: bool = True,
+		clear_on_exit: bool = False,
+		delay: float = 0.03,
+		manual_update: bool = False,
+		chars: Optional[Iterable[Any]] = None
 	):
 		from threading import Thread
 		from shutil import get_terminal_size
@@ -43,11 +264,11 @@ class Anim:
 		self.char = self.chars[0]
 		self.done = False
 
-	def get_line(self):
-		return f'\r{self.prepend_text}{self.char}{self.append_text}'
+	def get_line(self) -> str:
+		return f'\r{self.prepend_text}{self.char}{self.append_text}'.encode('utf-8').decode('utf-8')
 
 	@classmethod
-	def get_max_char_len(cls, chars) -> int:
+	def get_max_char_len(cls, chars: Iterable[Any]) -> int:
 		if not all(hasattr(char, '__len__') for char in chars):
 			last_char = chars[-1]
 
@@ -63,7 +284,7 @@ class Anim:
 		)
 
 	@classmethod
-	def adapt_chars_spaces(cls, chars) -> list | tuple:
+	def adapt_chars_spaces(cls, chars: Iterable[Any]) -> Iterable[Any]:
 		mcl = cls.get_max_char_len(chars)
 		if mcl <= 1:
 			return chars
@@ -81,7 +302,7 @@ class Anim:
 
 		return new_chars
 
-	def set_chars(self, new_chars: tuple | list):
+	def set_chars(self, new_chars: Iterable[Any]):
 		self.chars = self.adapt_chars_spaces(new_chars)
 
 	def set_text(self, new_text: str, prepended: bool = True):
@@ -126,7 +347,7 @@ class Anim:
 		elif self.just_clear_char:
 			self.safe_line_echo('\r' + self.prepend_text + ' ' * len(self.char) + self.append_text)
 
-	def __enter__(self):
+	def __enter__(self) -> 'Anim':
 		if self.manual_update:
 			self.update()
 
@@ -137,226 +358,10 @@ class Anim:
 
 		return self
 
-	def __exit__(self, exc_type, exc_value, exc_traceback):
-		if exc_type:
-			raise exc_value.with_traceback(exc_traceback)
-
+	def __exit__(self, *exc):
 		if not self.manual_update:
 			self.done = True
 			self.thread.join()
-
-class NewLiner:
-
-	"""
-	Simply adds a new line before and after the block of code
-
-	"""
-
-	def __init__(self):
-		pass
-
-	def __enter__(self):
-		print(flush = True)
-
-	def __exit__(self, exc_type, exc_value, exc_traceback):
-		if exc_type:
-			raise exc_value.with_traceback(exc_traceback)
-
-		print(flush = True)
-
-class Timer:
-
-	"""
-	Accepts (order doesn't matter from 0.16.2):
-
-		txt: str = '': text after main print message
-
-		echo: bool = True: wether to print taken time
-
-	At enter - returns created instance, at exit - formatted time difference. Original difference is stored at self.diff
-
-	"""
-
-	def __init__(self, echo = True, prep = '\nTaken time:', app = ''):
-		from time import perf_counter
-		self.time = perf_counter
-		self.echo = echo
-		self.prep = prep
-		self.app = app
-
-	def __enter__(self):
-		self.was = self.time()
-		return self
-
-	def __exit__(self, exc_type, exc_value, exc_traceback):
-		if exc_type:
-			raise exc_value.with_traceback(exc_traceback)
-
-		self.diff = self.time() - self.was
-		self.formatted_diff = num.decim_round(self.diff, -1)
-
-		if self.echo:
-			print(f'{self.prep} {self.formatted_diff}s {self.app}')
-
-		return self.formatted_diff
-
-class ProgressBar:
-	def __init__(
-		self,
-		iterator: Iterator | Iterable,
-		text: str = 'Processing...',
-		task_amount: int = None,
-		final_text: str = "Done\n"
-	):
-
-		if iterator and not isinstance(iterator, Iterator):
-
-			if not hasattr(iterator, '__iter__'):
-				raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
-
-			self.iterator = iterator.__iter__()
-
-		else: self.iterator = iterator
-
-		if task_amount is None:
-
-			if not hasattr(iterator, '__len__'):
-				raise AttributeError(f"You didn't provide task amount for Iterator or object with no __len__ attribute\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
-
-			self.task_amount = iterator.__len__()
-
-		else: self.task_amount = task_amount
-
-		from sys import stdout
-		self._text = text
-		self.completed_tasks = 0
-		self.final_text = final_text
-		self.swrite = stdout.write
-		self.sflush = stdout.flush
-
-	@property
-	def text(self):
-		return self._text
-
-	@text.setter
-	def text(self, value: str):
-		val_len = len(value)
-		text_len = len(self._text)
-		self._text = value + ' ' * (text_len - val_len if text_len > val_len else 0)
-
-	def __iter__(self):
-		self.update(0)
-		return self
-
-	def __next__(self):
-		try:
-			item = next(self.iterator)
-			self.update()
-			return item
-
-		except StopIteration:
-			self.finish()
-			raise
-
-	def update(self, increment: int = 1):
-		self.completed_tasks += increment
-		self.print_progress()
-
-	def print_progress(self):
-		self.swrite(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
-		self.sflush()
-
-	def finish(self):
-		self.finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
-		self.swrite(self.finish_message)
-		self.sflush()
-
-class AsyncProgressBar:
-	def __init__(
-		self,
-		text: str,
-		task_amount: int = None,
-		final_text: str = "Done\n",
-		tasks = None
-	):
-		import asyncio
-		from sys import stdout
-
-		self.asyncio = asyncio
-		self.swrite = stdout.write
-		self.sflush = stdout.flush
-
-		if task_amount is None and tasks:
-
-			if not hasattr(tasks, '__len__'):
-				raise AttributeError(f"You didn't provide task amount for Async Iterator\n\nType: {type(tasks)}\nAttrs: {dir(tasks)}")
-
-			else:
-				self.task_amount = tasks.__len__()
-
-		else: self.task_amount = task_amount
-
-		self.text = text
-		self.final_text = final_text
-		self.completed_tasks = 0
-
-		if tasks:
-			if hasattr(tasks, '__aiter__'):
-				self.tasks = tasks
-
-			else:
-				raise ValueError("tasks must be an async iterator or None")
-
-	async def update(self, increment: int = 1):
-		self.completed_tasks += increment
-		self.print_progress()
-
-	def print_progress(self):
-		self.swrite(f'\r{self.text} {self.completed_tasks}/{self.task_amount}')
-		self.sflush()
-
-	async def _finish(self):
-
-		if self.task_amount is not None:
-			self.finish_message = f'\r{self.text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
-
-		else:
-			self.finish_message = f'\r{self.text} {self.completed_tasks} {self.final_text}'
-
-		self.swrite(self.finish_message)
-		self.sflush()
-
-	async def as_completed(self, tasks):
-		self.update(0)
-
-		for task in self.asyncio.as_completed(tasks):
-			result = await task
-			await self.update()
-			yield result
-
-		await self._finish()
-
-	async def gather(self, tasks):
-		self.update(0)
-		results = []
-
-		for task in self.asyncio.as_completed(tasks):
-			result = await task
-			await self.update()
-			results.append(result)
-
-		await self._finish()
-		return results
-
-	async def __aiter__(self):
-		if not hasattr(self, 'tasks'):
-			raise ValueError("You didn't specify coroutine iterator")
-
-		async for task in self.tasks:
-			await self.update()
-			yield task
-
-		await self._finish()
 
 class aio:
 
@@ -370,16 +375,16 @@ class aio:
 	"""
 
 	@staticmethod
-	async def _request( # Pending change to `request`
+	async def request(
 		method: RequestMethods,
 		url: str,
-		toreturn: ReturnTypes = 'text',
-		session = None,
-		raise_exceptions = False,
-		httpx = False,
-		niquests = False,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
+		session: Optional[Any] = None,
+		raise_exceptions: bool = False,
+		httpx: bool = False,
+		niquests: bool = False,
 		**kwargs,
-	) -> list:
+	) -> list[Any]:
 
 		"""
 		Accepts:
@@ -430,8 +435,6 @@ class aio:
 
 		try:
 			response = await ses.request(method, url, **kwargs)
-			if toreturn[0] == 'response':
-				return response
 
 			for item in toreturn:
 
@@ -456,7 +459,7 @@ class aio:
 		except asyncio.TimeoutError:
 			return_items.insert(0, 0)
 
-		except (Exception, BaseException):
+		except BaseException:
 			if raise_exceptions:
 				raise
 
@@ -474,36 +477,36 @@ class aio:
 
 	@staticmethod
 	async def get(
-		url: str = 'https://example.com/',
-		toreturn: ReturnTypes = 'text',
-		session = None,
-		raise_exceptions = False,
-		httpx = False,
-		niquests = False,
+		url: str,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
+		session: Optional[Any] = None,
+		raise_exceptions: bool = False,
+		httpx: bool = False,
+		niquests: bool = False,
 		**kwargs,
-	) -> list:
-		return await aio._request('GET', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
-	
+	) -> list[Any]:
+		return await aio.request('GET', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
+
 	@staticmethod
 	async def post(
-		url: str = 'https://example.com/',
-		toreturn: ReturnTypes = 'text',
-		session = None,
-		raise_exceptions = False,
-		httpx = False,
-		niquests = False,
+		url: str,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
+		session: Optional[Any] = None,
+		raise_exceptions: bool = False,
+		httpx: bool = False,
+		niquests: bool = False,
 		**kwargs,
-	) -> list:
-		return await aio._request('POST', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
+	) -> list[Any]:
+		return await aio.request('POST', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
 	async def open(
 		file: str,
 		action: str = 'read',
 		mode: str = 'r',
-		content = None,
+		content: Optional[Any] = None,
 		**kwargs
-	) -> int:
+	) -> Union[int, str, bytes]:
 
 		"""
 		Accepts:
@@ -538,30 +541,11 @@ class aio:
 	@staticmethod
 	async def sem_task(
 		semaphore,
-		func: callable,
+		func: Callable[..., Any],
 		*args, **kwargs
-	):
+	) -> Any:
 		async with semaphore:
 			return await func(*args, **kwargs)
-
-def enhance_loop() -> bool:
-	from sys import platform
-	import asyncio
-
-	try:
-
-		if 'win' in platform:
-			import winloop # type: ignore
-			winloop.install()
-
-		else:
-			import uvloop # type: ignore
-			asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-
-		return True
-
-	except ImportError:
-		return False
 
 class num:
 
@@ -581,24 +565,25 @@ class num:
 			Example: num.beautify(4349.567, -1) -> 4.35K
 	"""
 
-	suffixes = ['', 'K', 'M', 'B', 'T', 1000]
-	fileSize_suffixes = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
+	suffixes: list[Union[str, int]] = ['', 'K', 'M', 'B', 'T', 1000]
+	fileSize_suffixes: list[Union[str, int]] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
+	sfx = fileSize_suffixes
 
-	multipliers: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
+	deshorteners: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 
 	@staticmethod
 	def shorten(
-		value: int | float,
-		decimals: int = 2,
-		suffixes: list[str] = None
+		value: Union[int, float],
+		decimals: int = -1,
+		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
 
 		"""
 		Accepts:
 
 			- value: int - big value
-			- decimals: int = 2 - round digit amount
+			- decimals: int = -1 - round digit amount
 
 			- suffixes: list[str] - Use case: File Size calculation: pass num.fileSize_suffixes
 
@@ -608,27 +593,26 @@ class num:
 		"""
 
 		absvalue = abs(value)
-		suffixes = suffixes or num.suffixes
+		suffixes: list[str] = suffixes or num.suffixes
 		magnitude = suffixes[-1]
 
 		for i, suffix in enumerate(suffixes[:-1]):
 			unit = magnitude ** i
 			if absvalue < unit * magnitude or i == len(suffixes) - 1:
 				value /= unit
-				formatted = num.decim_round(value, decimals, decims = [100, 10, 1])
-				return f"{formatted}{suffix}"
+				formatted: str = num.decim_round(value, decimals, decims = [100, 10, 1])
+				return formatted + suffix
 
 	@staticmethod
 	def unshorten(
 		value: str,
 		_round: bool = True
-	) -> float | int:
+	) -> Union[float, int, str]:
 
 		"""
 		Accepts:
 
 			- value: str - int-like value with shortener at the end
-
 			- _round: bool - wether returned value should be rounded to integer
 
 		Returns:
@@ -641,7 +625,7 @@ class num:
 
 		try:
 			number = float(number)
-			mp = num.multipliers[mp]
+			mp = num.deshorteners[mp]
 
 			if _round:
 				unshortened = round(number * mp)
@@ -657,10 +641,10 @@ class num:
 	@staticmethod
 	def decim_round(
 		value: float,
-		decimals: int = 2,
+		decimals: int = -1,
 		round_if_num_gt_1: bool = True,
 		precission: int = 20,
-		decims: list[int] = None
+		decims: Optional[list[int]] = None
 	) -> str:
 
 		"""
@@ -724,8 +708,8 @@ class num:
 		return (integer + '.' + decim).rstrip('.')
 
 	@staticmethod
-	def beautify(value: int | float, decimals: int = 2, precission: int = 20):
-		return num.shorten(float(num.decim_round(value, decimals, precission)), decimals)
+	def beautify(value: Union[int, float], decimals: int = -1, precission: int = 20) -> str:
+		return num.shorten(float(num.decim_round(value, decimals, precission = precission)), decimals)
 
 class Web3Misc:
 
@@ -753,11 +737,11 @@ class Web3Misc:
 
 	def gas_monitor(
 		self,
-		token_contract: str,
+		token_contract,
 		sender: str,
-		period: float | int = 10,
+		period: Union[float, int] = 10,
 		multiply_by: float = 1.0
-	) -> None:
+	):
 		dead = '0x000000000000000000000000000000000000dEaD'
 
 		while True:
@@ -766,9 +750,9 @@ class Web3Misc:
 
 	def gas_price_monitor(
 		self,
-		period: float | int = 10,
+		period: Union[float, int] = 10,
 		multiply_by: float = 1.0
-	) -> None:
+	):
 
 		while True:
 			self.gas_price = round(self.web3.eth.gas_price * multiply_by)
@@ -777,8 +761,8 @@ class Web3Misc:
 	def nonce_monitor(
 		self,
 		address: str,
-		period: float | int = 10
-	) -> None:
+		period: Union[float, int] = 10
+	):
 
 		while True:
 			self.nonce = self.web3.eth.get_transaction_count(address)
@@ -790,7 +774,7 @@ class Web3Misc:
 # -------------MINECRAFT-VERSIONING-LOL-------------
 
 class MC_VersionList:
-	def __init__(self, versions, indices) -> None:
+	def __init__(self, versions: list[str], indices: list[int]):
 		self.length = len(versions)
 
 		if self.length != len(indices):
@@ -798,16 +782,16 @@ class MC_VersionList:
 
 		self.versions = versions
 		self.indices = indices
-		self.map = {version: index for version, index in zip(versions, indices)}
+		# self.map = {version: index for version, index in zip(versions, indices)}
 
 class MC_Versions:
-	def __init__(self) -> None:
+	def __init__(self):
 		import asyncio
 		from re import findall
 
+		self.findall = findall
 		self.manifest_url = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
 
-		self.findall = findall
 		# Pattern for a single version
 		version_pattern = r'1\.\d+(?:\.\d+){0,1}'
 		# Pattern for a single version or a version range
@@ -817,15 +801,14 @@ class MC_Versions:
 
 		try:
 			loop = asyncio.get_event_loop()
-		except RuntimeError:
+		except(RuntimeError, DeprecationWarning):
 			enhance_loop()
 			loop = asyncio.new_event_loop()
-			asyncio.set_event_loop(loop)
 
 		loop.run_until_complete(self.fetch_version_manifest())
 		self.latest = self.release_versions[-1]
 
-	def sort(self, mc_vers: list[str]) -> list[str]:
+	def sort(self, mc_vers: Iterable[str]) -> MC_VersionList:
 		filtered_vers = set()
 
 		for ver in mc_vers:
@@ -843,8 +826,8 @@ class MC_Versions:
 
 		return MC_VersionList([self.release_versions[index] for index in sorted_indices], sorted_indices)
 
-	def get_range(self, mc_vers: MC_VersionList | list | tuple) -> str:
-		if isinstance(mc_vers, (list, tuple)):
+	def get_range(self, mc_vers: Union[MC_VersionList, Iterable[str]]) -> str:
+		if isinstance(mc_vers, Iterable):
 			mc_vers = self.sort(mc_vers)
 
 		version_range = ''
@@ -872,11 +855,11 @@ class MC_Versions:
 
 		return version_range
 
-	def get_list(self, mc_vers: str):
+	def get_list(self, mc_vers: str) -> list[str]:
 		return self.findall(self.full_pattern, mc_vers)
 
 	async def fetch_version_manifest(self):
-		response = await aio.request(self.manifest_url, toreturn = ['json', 'status'])
+		response = await aio.get(self.manifest_url, toreturn = ['json', 'status'])
 		manifest_data, status = response
 
 		if status != 200 or not isinstance(manifest_data, dict):
@@ -890,14 +873,35 @@ class MC_Versions:
 
 		self.release_versions.reverse() # Ascending
 
-	def is_version(self, version: str):
+	def is_version(self, version: str) -> bool:
 		try:
 			self.release_versions.index(version)
 			return True
 		except ValueError:
 			return False
 
-def get_content(source: str | bytes) -> tuple[int, bytes]:
+# ----------------METHODS----------------
+
+def enhance_loop() -> bool:
+	from sys import platform
+	import asyncio
+
+	try:
+
+		if 'win' in platform:
+			import winloop # type: ignore
+			winloop.install()
+
+		else:
+			import uvloop # type: ignore
+			asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+		return True
+
+	except ImportError:
+		return False
+
+def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Optional[bytes]]:
 	"""
 	Returns source byte content
 	Source can be either a file_path, readable buffer or just bytes
@@ -929,7 +933,7 @@ def get_content(source: str | bytes) -> tuple[int, bytes]:
 
 		return None, None
 
-def write_content(content: str | bytes, output) -> int | bytes:
+def write_content(content: Union[str, bytes], output: Union[False, str, IO[bytes]]) -> Union[int, bytes]:
 	_, content = get_content(content)
 
 	if hasattr(output, 'write'):
@@ -943,11 +947,11 @@ def write_content(content: str | bytes, output) -> int | bytes:
 			return f.write(content)
 
 def make_tar(
-	source,
-	output,
-	ignore_errors = PermissionError,
-	in_memory = False
-) -> str | bytes:
+	source: str,
+	output: str,
+	ignore_errors: Union[type, tuple[type]] = PermissionError,
+	in_memory: bool = False
+) -> Union[str, bytes]:
 
 	import tarfile, os
 
@@ -987,16 +991,16 @@ def make_tar(
 	return output
 
 def compress(
-	source: bytes | str,
+	source: Union[bytes, str, IO[bytes]],
 	algorithm: Algorithms = 'gzip',
-	output = None,
-	ignored_exceptions: type | tuple[type] = (PermissionError, OSError),
-	tar_in_memory = True,
-	tar_if_file = False,
-	compression_level = None,
-	check_algorithm_support = False,
+	output: Union[False, str, IO[bytes]] = None,
+	ignored_exceptions: Union[type, tuple[type]] = (PermissionError, OSError),
+	tar_in_memory: bool = True,
+	tar_if_file: bool = False,
+	compression_level: Optional[int] = None,
+	check_algorithm_support: bool = False,
 	**kwargs
-) -> int | bytes:
+) -> Union[int, bytes]:
 
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').compress, {}, {'compression_level': 'compresslevel'}),
@@ -1092,11 +1096,11 @@ def is_brotli(data: bytes) -> bool:
 	return True
 
 def decompress(
-	source: bytes | str,
-	algorithm: Algorithms = None,
-	output = None,
+	source: Union[bytes, str, IO[bytes]],
+	algorithm: Optional[Algorithms] = None,
+	output: Optional[Union[False, str, IO[bytes]]] = None,
 	**kwargs
-) -> int | str | bytes:
+) -> Union[int, str, bytes]:
 
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
@@ -1119,11 +1123,14 @@ def decompress(
 				algorithm = algo
 				break
 
-	if not algorithm:
-		raise ValueError(f"Couldn't detect algorithm for decompression, start bytes: {content[:10]}")
+		if not algorithm:
+			raise ValueError(f"Couldn't detect algorithm for decompression, start bytes: {content[:10]}")
 
 	a_decompress = algorithm_map[algorithm][0]()
 	decompressed = a_decompress(content, **kwargs)
+
+	if output is None:
+		output = source.rsplit('.', 1)[0] if isinstance(source, str) else False
 
 	if output is False:
 		return decompressed
@@ -1131,25 +1138,16 @@ def decompress(
 	elif hasattr(output, 'write'):
 		return output.write(decompressed)
 
-	elif output is None:
-		output = './'
-	
 	# Assuming output is a path
 	import tarfile, io
-
-	if output is None:
-		output = source.rsplit('.', 1)[0]
 
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
-		with tarfile.open(fileobj=stream) as tar:
-			tar.extractall(output)
+		tarfile.open(fileobj=stream).extractall(output)
 
 	else:
 		with open(output, 'wb') as f:
 			f.write(decompressed)
 
 	return output
-
-aio.request = aio.get # Pending removal

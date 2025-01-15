@@ -1,36 +1,18 @@
-#!/usr/bin/env python3.13
 from sputchedtools import *
-import asyncio, random, aiohttp, httpx, os, shutil
+import asyncio, random, aiohttp, httpx, os, shutil, niquests
 
-async def aio_test():
-	response = await aio.request(
+async def aio_test(**kwargs):
+	response = await aio.get(
 		url,
-		toreturn = [
-			val for val in dir(aiohttp.ClientResponse) if not val.startswith('_')
-		],
-		raise_exceptions = False
+		**kwargs
 	)
 
-	for data in ProgressBar(response, text = 'Processing aio data...'):
-		...
-		# print('\n', data if not isinstance(data, str) else data[:30], sep = '')
-
-async def aiox_test():
-	response = await aio.request(
-		url,
-		toreturn = [
-			val for val in dir(httpx.Response) if not val.startswith('_')
-		],
-		httpx = True,
-		raise_exceptions = False
-	)
-
-	for data in ProgressBar(response, text = 'Processing httpx data...'):
+	for data in ProgressBar(response, text = 'Processing response data...'):
 		...
 		# print('\n', data if not isinstance(data, str) else data[:30], sep = '')
 
 def num_test():
-	with Timer(f'num, {num.shorten(num_test_iters)}'):
+	with Timer():
 		for i in range(num_test_iters):
 			d = random.uniform(-100000, 100000)
 			e = num.beautify(d, -1)
@@ -39,8 +21,8 @@ def num_test():
 def MC_Versions_test():
 	mc = MC_Versions()
 	versions = mc.release_versions
-	with Timer('(Sorting)'): sorted_versions = mc.sort(versions)
-	with Timer('(Range)'): print(mc.get_range(sorted_versions))
+	with Timer('MC Sorting: %ms'): sorted_versions = mc.sort(versions)
+	with Timer('MC Range: %ms'): print(mc.get_range(sorted_versions))
 	print('Latest Minecraft version:', mc.latest)
 
 def compress_test():	
@@ -88,8 +70,6 @@ def decompress_test():
 
 def anim_test():
 	import time
-	sl = 0.002
-	start, end = 20, 150
 
 	with Anim('Loading ', clear_on_exit = True) as anim:
 		for i in (True, False):
@@ -122,17 +102,16 @@ def anim_test():
 	# 	anim.set_text('Downloading... ')
 	# 	time.sleep(1)
 
-with Timer('Test completed?'):
+with Timer() as t:
 	enhance_loop()
-	loop = asyncio.new_event_loop()
 
 	url = 'https://cloudflare-quic.com/'
-	loop.run_until_complete(aio_test())
-	loop.run_until_complete(aiox_test())
-	print()
+	asyncio.run(aio_test(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
+	asyncio.run(aio_test(toreturn = [k for k in dir(httpx.Response) if not k.startswith('_')], httpx = True))
+	asyncio.run(aio_test(toreturn = [k for k in dir(niquests.AsyncResponse) if not k.startswith('_')], niquests = True))
 
-	num_test_iters = 5
-	num_test()
+	num_test_iters = 15
+	with NewLiner(): num_test()
 	MC_Versions_test()
 	
 	_compress_file = 'sputchedtools.py'
@@ -142,4 +121,6 @@ with Timer('Test completed?'):
 	compress_test()
 	decompress_test()
 
+	sl = 0.001
+	start, end = 20, 100
 	anim_test()
