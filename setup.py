@@ -29,7 +29,7 @@ setup(
     url='https://github.com/Sputchik/sputchedtools',
     long_description=readme,
     long_description_content_type='text/markdown',
-    python_requires='>=3.8',
+    python_requires='>=3.10',
     # Add this line to make wheels platform-specific when Cythonized
     has_ext_modules=lambda: is_cythonized,
 )
