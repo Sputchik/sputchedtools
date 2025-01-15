@@ -17,18 +17,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      
       - uses: actions/cache@v3
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Setup Windows ARM
         if: runner.os == 'Windows'
@@ -55,9 +55,7 @@ jobs:
             elif command -v yum >/dev/null; then
               yum install -y python3-devel gcc gcc-c++
             fi
-          CIBW_ENVIRONMENT: "CYTHONIZE=1 PIP_CACHE_DIR=/tmp/pip-cache"
-          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: "pip install delvewheel && delvewheel repair -w {dest_dir} {wheel}"
-          # CIBW_BUILD_VERBOSITY: "1"
+          CIBW_ENVIRONMENT: "CYTHONIZE=1"
         
         run: cibuildwheel --output-dir dist
 
