@@ -22,19 +22,6 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
-      
-      - uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Setup Windows ARM
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: amd64_arm64
 
       - uses: actions/setup-python@v4 
         with:
