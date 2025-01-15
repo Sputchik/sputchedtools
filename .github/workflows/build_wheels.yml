@@ -10,7 +10,6 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    if: startsWith(github.event.head_commit.message, '0.')
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
