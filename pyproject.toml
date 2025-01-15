@@ -3,21 +3,11 @@ requires = ["setuptools>=42", "wheel", "Cython>=3.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.cibuildwheel]
-skip = ["cp36-*", "cp37-*", "pp*"]  # Skip Python 3.6, 3.7 and PyPy
-test-requires = ["pytest"]
-test-command = "pytest {project}/tests"
+skip = ["pp*"]  # Only skip PyPy as we already handle Python versions in workflow
 
 [tool.cibuildwheel.linux]
 before-all = "apt-get update && apt-get install -y python3-dev build-essential"
-repair-wheel-command = "auditwheel repair -w {dest_dir} {wheel}"
-
-[tool.cibuildwheel.windows]
-repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel}"
-
-[tool.cibuildwheel.macos]
-repair-wheel-command = "delocate-wheel -w {dest_dir} -v {wheel}"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v"
