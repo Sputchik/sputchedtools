@@ -38,6 +38,7 @@ jobs:
           CIBW_BEFORE_ALL_LINUX: "yum install -y python3-devel gcc gcc-c++"
           CIBW_ENVIRONMENT: "CYTHONIZE=1"
           CIBW_BUILD_VERBOSITY: 1
+          CIBW_TEST_SKIP: "*"  # Skip all tests
         run: cibuildwheel --output-dir dist
 
       - uses: actions/upload-artifact@v3

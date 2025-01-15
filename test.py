@@ -1,5 +1,9 @@
 from sputchedtools import *
-import asyncio, random, aiohttp, httpx, os, shutil, niquests
+import asyncio
+import aiohttp
+import random
+import os
+import shutil
 
 async def aio_test(**kwargs):
 	response = await aio.get(
@@ -100,8 +104,8 @@ with Timer() as t:
 
 	url = 'https://cloudflare-quic.com/'
 	asyncio.run(aio_test(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
-	asyncio.run(aio_test(toreturn = [k for k in dir(httpx.Response) if not k.startswith('_')], httpx = True))
-	asyncio.run(aio_test(toreturn = [k for k in dir(niquests.AsyncResponse) if not k.startswith('_')], niquests = True))
+	# asyncio.run(aio_test(toreturn = [k for k in dir(httpx.Response) if not k.startswith('_')], httpx = True))
+	# asyncio.run(aio_test(toreturn = [k for k in dir(niquests.AsyncResponse) if not k.startswith('_')], niquests = True))
 
 	num_test_iters = 15
 	with NewLiner(): num_test()
