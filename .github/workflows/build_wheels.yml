@@ -14,6 +14,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        cythonize: [0, 1]
 
     steps:
       - uses: actions/checkout@v4
@@ -23,21 +24,28 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install cibuildwheel
-        run: python -m pip install --upgrade pip cibuildwheel
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install build cibuildwheel
 
-      - name: Build wheels
+      - name: Build pure Python wheel
+        if: matrix.cythonize == 0
+        run: python -m build --wheel --outdir dist/
+
+      - name: Build Cythonized wheels
+        if: matrix.cythonize == 1
         env:
           CIBW_BUILD: "cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*"
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_ARCHS_WINDOWS: "AMD64 x86"
           CIBW_BEFORE_ALL_LINUX: "yum install -y python3-devel gcc gcc-c++"
+          CIBW_ENVIRONMENT: "CYTHONIZE=1"
+          CIBW_BUILD_VERBOSITY: 1
         run: cibuildwheel --output-dir dist
 
       - uses: actions/upload-artifact@v3
         with:
-          name: wheels
-          path: |
-            dist/*.whl
-            dist/*.tar.gz
+          name: wheels-${{ matrix.os }}-cythonize-${{ matrix.cythonize }}
+          path: dist/*.whl
