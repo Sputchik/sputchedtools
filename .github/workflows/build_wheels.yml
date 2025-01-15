@@ -18,12 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-dev build-essential
-
       - name: Set up Python
         uses: actions/setup-python@v4 
         with:
@@ -38,6 +32,7 @@ jobs:
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
           CIBW_ARCHS_WINDOWS: "AMD64 x86"
+          CIBW_BEFORE_ALL_LINUX: "yum install -y python3-devel gcc gcc-c++"
         run: cibuildwheel --output-dir dist
 
       - uses: actions/upload-artifact@v3
