@@ -2,8 +2,8 @@ name: Build Wheels
 
 on:
   push:
-    tags:
-      - '0.*'
+    branches:
+      - 'releases'
   workflow_dispatch:
 
 jobs:
