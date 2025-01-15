@@ -13,7 +13,7 @@ py_modules = ['sptz'] if is_cythonized else ['sputchedtools', 'sptz']
 
 setup(
 	name='sputchedtools',
-	version='0.30.0pre1',
+	version='0.30.0',
 	packages=find_packages(),
 	py_modules=py_modules,
 	install_requires=[

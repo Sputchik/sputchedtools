@@ -65,7 +65,7 @@ class Timer:
 
 		return fmt
 
-	def __exit__(self, *exc_args):
+	def __exit__(self, *exc):
 		end_time = self.time()
 		self.diff = end_time - self._start_time
 
@@ -77,8 +77,8 @@ class Timer:
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
 
-	async def __aexit__(self, *exc_args):
-		return self.__exit__(*exc_args)
+	async def __aexit__(self, *exc):
+		return self.__exit__(*exc)
 
 class NewLiner:
 
@@ -86,9 +86,6 @@ class NewLiner:
 	Simply adds a new line before and after the block of code
 
 	"""
-
-	def __init__(self):
-		pass
 
 	def __enter__(self):
 		print(flush = True)
@@ -933,7 +930,7 @@ def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Op
 
 		return None, None
 
-def write_content(content: Union[str, bytes], output: Union[False, str, IO[bytes]]) -> Union[int, bytes]:
+def write_content(content: Union[str, bytes], output: Union[Literal[False], str, IO[bytes]]) -> Union[int, bytes]:
 	_, content = get_content(content)
 
 	if hasattr(output, 'write'):
@@ -993,7 +990,7 @@ def make_tar(
 def compress(
 	source: Union[bytes, str, IO[bytes]],
 	algorithm: Algorithms = 'gzip',
-	output: Union[False, str, IO[bytes]] = None,
+	output: Union[Literal[False], str, IO[bytes]] = None,
 	ignored_exceptions: Union[type, tuple[type]] = (PermissionError, OSError),
 	tar_in_memory: bool = True,
 	tar_if_file: bool = False,
@@ -1098,7 +1095,7 @@ def is_brotli(data: bytes) -> bool:
 def decompress(
 	source: Union[bytes, str, IO[bytes]],
 	algorithm: Optional[Algorithms] = None,
-	output: Optional[Union[False, str, IO[bytes]]] = None,
+	output: Optional[Union[Literal[False], str, IO[bytes]]] = None,
 	**kwargs
 ) -> Union[int, str, bytes]:
 

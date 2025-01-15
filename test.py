@@ -25,7 +25,7 @@ def MC_Versions_test():
 	with Timer('MC Range: %ms'): print(mc.get_range(sorted_versions))
 	print('Latest Minecraft version:', mc.latest)
 
-def compress_test():	
+def compress_test():
 	files = (_compress_file, compress_folder)
 
 	with NewLiner():
@@ -35,7 +35,7 @@ def compress_test():
 
 				with Timer(False) as t:
 					compress(file, algorithm = algo, output = out, compression_level=1)
-				
+
 				diff = t.diff * 1000
 				size = os.path.getsize(out)
 				formatted_size = num.shorten(size)
@@ -50,20 +50,20 @@ def decompress_test():
 			for algo in algorithms:
 				source = file + f'.{algo}'
 				out = 'de-' + source
-				
+
 				if os.path.exists(out):
 					shutil.rmtree(out)
 
 				with Timer(False) as t:
 					decompress(source, output = out)
-				
+
 				diff = t.diff * 1000
 				print(f'{algo}: Decompressed {source}, {diff:.2f}ms')
 				os.remove(source)
 
 				if os.path.isfile(out):
 					os.remove(out)
-				
+
 				else:
 					try: shutil.rmtree(out)
 					except: pass
@@ -85,22 +85,15 @@ def anim_test():
 			time.sleep(sl)
 			anim.set_text('Loading' + '.' * _ + ' ')
 			anim.set_text(' Loading' + '.' * _ + ' ', False)
-		
+
 		for _ in range(end, 3, -1):
 			time.sleep(sl)
 			anim.set_text('Loading' + '.' * _ + ' ')
 			anim.set_text(' Loading' + '.' * _ + ' ', False)
-		
+
 		anim.set_text(' Done! ', False)
 
 	print('Was there text before????')
-
-	# with Anim('Selecting... ') as anim:
-	# 	anim.set_text('Fetching something... ')
-	# 	time.sleep(0.1)
-	# 	anim.set_text('Selecting what... ')
-	# 	anim.set_text('Downloading... ')
-	# 	time.sleep(1)
 
 with Timer() as t:
 	enhance_loop()
@@ -113,7 +106,7 @@ with Timer() as t:
 	num_test_iters = 15
 	with NewLiner(): num_test()
 	MC_Versions_test()
-	
+
 	_compress_file = 'sputchedtools.py'
 	compress_folder = '__pycache__'
 	num.suffixes = num.fileSize_suffixes
