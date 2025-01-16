@@ -55,18 +55,7 @@ jobs:
           key: ${{ runner.os }}-cython-${{ hashFiles('sputchedtools_original/src/**') }}
           restore-keys: |
             ${{ runner.os }}-cython-
-
-      - name: Cache NuGet packages
-        if: runner.os == 'Windows'
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~\.nuget\packages
-            C:\Users\runneradmin\AppData\Local\pypa\cibuildwheel\Cache\nuget-cpython
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.whl') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
-
+    
       - name: Install build dependencies
         run: python -m pip install --upgrade pip build cibuildwheel
 
