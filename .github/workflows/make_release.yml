@@ -18,6 +18,7 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.PAT }}
+          ref: main  # Explicitly checkout main branch
           
       - name: Configure Git
         run: |
@@ -26,11 +27,15 @@ jobs:
           
       - name: Sync to releases branch
         run: |
-          # Fetch all branches
-          git fetch origin
-          # Try to checkout releases branch or create new one
+          # Ensure we're on main and it's up to date
+          git checkout main
+          git pull origin main
+          
+          # Create or switch to releases branch
           git checkout releases 2>/dev/null || git checkout -b releases
-          # Reset to origin/main
-          git reset --hard origin/main
-          # Force push to releases
+          
+          # Reset releases to match main exactly
+          git reset --hard main
+          
+          # Push changes
           git push -f origin releases
