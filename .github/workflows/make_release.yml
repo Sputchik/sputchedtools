@@ -26,6 +26,11 @@ jobs:
           
       - name: Sync to releases branch
         run: |
-          git checkout releases || git checkout -b releases
-          git reset --hard main
-          git push -f "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git" releases
+          # Fetch all branches
+          git fetch origin
+          # Try to checkout releases branch or create new one
+          git checkout releases 2>/dev/null || git checkout -b releases
+          # Reset to origin/main
+          git reset --hard origin/main
+          # Force push to releases
+          git push -f origin releases
