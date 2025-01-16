@@ -95,15 +95,9 @@ jobs:
       - name: Build wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
-          CIBW_ARCHS_LINUX: >-
-            ${{ github.event.inputs.linux-x86_64 == 'true' && 'x86_64' || '' }}
-            ${{ github.event.inputs.linux-aarch64 == 'true' && 'aarch64' || '' }}
-          CIBW_ARCHS_MACOS: >-
-            ${{ github.event.inputs.macos-x86_64 == 'true' && 'x86_64' || '' }}
-            ${{ github.event.inputs.macos-arm64 == 'true' && 'arm64' || '' }}
-          CIBW_ARCHS_WINDOWS: >-
-            ${{ github.event.inputs.windows-amd64 == 'true' && 'AMD64' || '' }}
-            ${{ github.event.inputs.windows-arm64 == 'true' && 'ARM64' || '' }}
+          CIBW_ARCHS_LINUX: ${{ contains(fromJSON('["x86_64", ""]'), github.event.inputs.linux-x86_64) && 'x86_64' || '' }}${{ contains(fromJSON('["aarch64", ""]'), github.event.inputs.linux-aarch64) && ' aarch64' || '' }}
+          CIBW_ARCHS_MACOS: ${{ contains(fromJSON('["x86_64", ""]'), github.event.inputs.macos-x86_64) && 'x86_64' || '' }}${{ contains(fromJSON('["arm64", ""]'), github.event.inputs.macos-arm64) && ' arm64' || '' }}
+          CIBW_ARCHS_WINDOWS: ${{ contains(fromJSON('["AMD64", ""]'), github.event.inputs.windows-amd64) && 'AMD64' || '' }}${{ contains(fromJSON('["ARM64", ""]'), github.event.inputs.windows-arm64) && ' ARM64' || '' }}
           CIBW_BEFORE_ALL_LINUX: >
             if command -v apt-get >/dev/null; then
               apt-get update && apt-get install -y python3-dev build-essential
