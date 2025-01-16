@@ -144,7 +144,7 @@ jobs:
     needs: [build_wheels, build_sdist, collect_wheels]
     runs-on: ubuntu-latest
     if: |
-      github.event.inputs.publish == 'true'
+      github.event.inputs.publish == 'true' || startsWith(github.event.head_commit.message, '0.')
 
     steps:
       - uses: actions/checkout@v4
