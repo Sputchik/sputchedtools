@@ -10,6 +10,8 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
+__version__ = '0.30.0'
+
 # ----------------CLASSES-----------------
 
 @dataclass
@@ -32,7 +34,7 @@ class Timer:
 
 	def __init__(
 		self,
-		echo_fmt: Optional[str] = "Taken time: %s",
+		echo_fmt: Union[str, Literal[False]] = "Taken time: %s",
 		append_fmt: bool = True
 	):
 
@@ -887,7 +889,7 @@ def enhance_loop() -> bool:
 
 		if 'win' in platform:
 			import winloop # type: ignore
-			winloop.install()
+			asyncio.set_event_loop_policy(winloop.EventLoopPolicy())
 
 		else:
 			import uvloop # type: ignore
@@ -1141,7 +1143,7 @@ def decompress(
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
-		tarfile.open(fileobj=stream).extractall(output)
+		tarfile.open(fileobj=stream).extractall(output, filter = 'data')
 
 	else:
 		with open(output, 'wb') as f:

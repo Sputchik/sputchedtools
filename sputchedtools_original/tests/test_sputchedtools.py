@@ -6,6 +6,16 @@ import random
 import os
 import shutil
 
+enhance_loop()
+
+url = 'https://cloudflare-quic.com/'
+num_test_iters = 15
+_compress_file = 'sputchedtools.py'
+compress_folder = '__pycache__'
+num.suffixes = num.fileSize_suffixes
+sl = 0.001
+start, end = 20, 100
+
 async def aio_test(**kwargs):
 	response = await aio.get(
 		url,
@@ -16,21 +26,21 @@ async def aio_test(**kwargs):
 		...
 		# print('\n', data if not isinstance(data, str) else data[:30], sep = '')
 
-def num_test():
-	with Timer():
+def test_num():
+	with NewLiner(), Timer():
 		for i in range(num_test_iters):
 			d = random.uniform(-100000, 100000)
 			e = num.beautify(d, -1)
 			print(d, e, num.unshorten(e), sep = ' - ')
 
-def MC_Versions_test():
+def test_MC_Versions():
 	mc = MC_Versions()
 	versions = mc.release_versions
 	with Timer('MC Sorting: %ms'): sorted_versions = mc.sort(versions)
 	with Timer('MC Range: %ms'): print(mc.get_range(sorted_versions))
 	print('Latest Minecraft version:', mc.latest)
 
-def compress_test():
+def test_compress():
 	files = (_compress_file, compress_folder)
 
 	with NewLiner():
@@ -47,7 +57,7 @@ def compress_test():
 
 				print(f'{algo}: Compressed {file}: {formatted_size}, {diff:.2f}ms')
 
-def decompress_test():
+def test_decompress():
 	files = (_compress_file, compress_folder)
 
 	with NewLiner():
@@ -73,7 +83,7 @@ def decompress_test():
 					try: shutil.rmtree(out)
 					except: pass
 
-def anim_test():
+def test_anim():
 	import time
 
 	with Anim('Loading ', clear_on_exit = True) as anim:
@@ -100,25 +110,11 @@ def anim_test():
 
 	print('Was there text before????')
 
-with Timer() as t:
-	enhance_loop()
-
-	url = 'https://cloudflare-quic.com/'
+if __name__ == '__main__':
 	asyncio.run(aio_test(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
-	# asyncio.run(aio_test(toreturn = [k for k in dir(httpx.Response) if not k.startswith('_')], httpx = True))
-	# asyncio.run(aio_test(toreturn = [k for k in dir(niquests.AsyncResponse) if not k.startswith('_')], niquests = True))
-
-	num_test_iters = 15
-	with NewLiner(): num_test()
-	MC_Versions_test()
-
-	_compress_file = 'sputchedtools.py'
-	compress_folder = '__pycache__'
-	num.suffixes = num.fileSize_suffixes
-
-	compress_test()
-	decompress_test()
-
-	sl = 0.001
-	start, end = 20, 100
-	anim_test()
+		
+	test_num()
+	test_MC_Versions()
+	test_compress()
+	test_decompress()
+	test_anim()

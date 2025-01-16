@@ -1,3 +1,4 @@
+cd ../
 rm -rf dist __pycache__ build sputchedtools.egg-info
 
 # Build Cythonized wheel
@@ -10,4 +11,4 @@ python3 setup.py -wn
 python3 setup.py -sn
 twine upload dist/*
 
-rm -rf dist __pycache__ build sputchedtools.egg-info *.c *.in
+rm -rf dist __pycache__ build sputchedtools.egg-info *.c MANIFEST.in

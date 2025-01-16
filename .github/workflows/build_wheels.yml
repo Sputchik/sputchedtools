@@ -4,6 +4,12 @@ on:
   push:
     branches: ['releases']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish to PyPI'
+        type: boolean
+        required: true
+        default: false
 
 jobs:
   build_wheels:
@@ -16,6 +22,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: runner.os == 'Linux'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
       - uses: actions/setup-python@v4 
         with:
           python-version: '3.x'
@@ -26,9 +39,9 @@ jobs:
       - name: Build wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
-          CIBW_ARCHS_LINUX: "x86_64 aarch64"
+          CIBW_ARCHS_LINUX: "${{ runner.os == 'Linux' && 'x86_64 aarch64' || '' }}"
           CIBW_ARCHS_MACOS: "x86_64 arm64"
-          CIBW_ARCHS_WINDOWS: "AMD64 x86"
+          CIBW_ARCHS_WINDOWS: "AMD64 x86 ARM64"
           CIBW_BEFORE_ALL_LINUX: >
             if command -v apt-get >/dev/null; then
               apt-get update && apt-get install -y python3-dev build-essential
@@ -36,9 +49,64 @@ jobs:
               yum install -y python3-devel gcc gcc-c++
             fi
           CIBW_ENVIRONMENT: "CYTHONIZE=1"
+          CIBW_ENVIRONMENT_LINUX: >-
+            QEMU_KVM=1
+            QEMU_CPU=max
+            QEMU_CORES=4
+            QEMU_RAM=4096
+            QEMU_OPTS="-enable-kvm -cpu max -smp 4 -accel tcg,thread=multi"
+        
         run: cibuildwheel --output-dir dist
 
       - uses: actions/upload-artifact@v3
         with:
           name: wheels-${{ matrix.os }}
           path: dist/*.whl
+
+  build_sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Build sdist and pure wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist --wheel
+          
+      - uses: actions/upload-artifact@v3
+        with:
+          name: distributions
+          path: dist/*
+
+  publish:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.publish == 'true' 
+    #  && startsWith(github.event.head_commit.message, '0.')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist
+
+      - name: Move wheels to dist
+        run: |
+          mkdir -p dist_combined
+          find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec mv {} dist_combined/ \;
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI }}
+          packages-dir: dist_combined/

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=42", "wheel", "Cython>=3.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sputchedtools"
+dynamic = ["version"]
+description = "Collection of Python utilities"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Sputchik", email = "sputchik@gmail.com"}]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[tool.setuptools.dynamic]
+version = {attr = "sputchedtools.__version__"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --capture=no --tb=short"
+pythonpath = ["src"]
+
+[tool.cython-build-options]
+cache-dir = ".cython_cache"
