@@ -10,30 +10,6 @@ on:
         type: boolean
         required: false
         default: false
-      linux-x86_64:
-        description: 'Build for Linux x86_64'
-        type: boolean
-        default: true
-      linux-aarch64:
-        description: 'Build for Linux ARM64'
-        type: boolean
-        default: false
-      macos-x86_64:
-        description: 'Build for macOS x86_64'
-        type: boolean
-        default: false
-      macos-arm64:
-        description: 'Build for macOS ARM64'
-        type: boolean
-        default: true
-      windows-amd64:
-        description: 'Build for Windows AMD64'
-        type: boolean
-        default: true
-      windows-arm64:
-        description: 'Build for Windows ARM64'
-        type: boolean
-        default: true
 
 jobs:
   build_wheels:
@@ -42,22 +18,13 @@ jobs:
     if: startsWith(github.event.head_commit.message, '0.') || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-            enabled: ${{ github.event.inputs.linux-x86_64 == 'true' || github.event.inputs.linux-aarch64 == 'true' }}
-          - os: macos-latest
-            platform: macos
-            enabled: ${{ github.event.inputs.macos-x86_64 == 'true' || github.event.inputs.macos-arm64 == 'true' }}
-          - os: windows-latest
-            platform: windows
-            enabled: ${{ github.event.inputs.windows-amd64 == 'true' || github.event.inputs.windows-arm64 == 'true' }}
-    
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up QEMU
-        if: runner.os == 'Linux' && github.event.inputs.linux-aarch64 == 'true'
+        if: runner.os == 'Linux'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -95,9 +62,9 @@ jobs:
       - name: Build wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
-          CIBW_ARCHS_LINUX: ${{ contains(fromJSON('["x86_64", ""]'), github.event.inputs.linux-x86_64) && 'x86_64' || '' }}${{ contains(fromJSON('["aarch64", ""]'), github.event.inputs.linux-aarch64) && ' aarch64' || '' }}
-          CIBW_ARCHS_MACOS: ${{ contains(fromJSON('["x86_64", ""]'), github.event.inputs.macos-x86_64) && 'x86_64' || '' }}${{ contains(fromJSON('["arm64", ""]'), github.event.inputs.macos-arm64) && ' arm64' || '' }}
-          CIBW_ARCHS_WINDOWS: ${{ contains(fromJSON('["AMD64", ""]'), github.event.inputs.windows-amd64) && 'AMD64' || '' }}${{ contains(fromJSON('["ARM64", ""]'), github.event.inputs.windows-arm64) && ' ARM64' || '' }}
+          CIBW_ARCHS_LINUX: "${{ runner.os == 'Linux' && 'x86_64' || '' }}"
+          CIBW_ARCHS_MACOS: "arm64"
+          CIBW_ARCHS_WINDOWS: "AMD64 ARM64"
           CIBW_BEFORE_ALL_LINUX: >
             if command -v apt-get >/dev/null; then
               apt-get update && apt-get install -y python3-dev build-essential
