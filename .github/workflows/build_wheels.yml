@@ -56,6 +56,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cython-
 
+      - name: Cache NuGet packages
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~\.nuget\packages
+            C:\Users\runneradmin\AppData\Local\pypa\cibuildwheel\Cache\nuget-cpython
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.whl') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Install build dependencies
         run: python -m pip install --upgrade pip build cibuildwheel
 
@@ -120,7 +131,8 @@ jobs:
       - name: Move wheels to single directory
         run: |
           mkdir -p all_wheels
-          find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec mv {} all_wheels/ \;
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec mv {} all_wheels/ \;
+          ls -la all_wheels/
 
       - name: Upload combined wheels
         uses: actions/upload-artifact@v3
@@ -146,7 +158,8 @@ jobs:
       - name: Move wheels to dist
         run: |
           mkdir -p dist_combined
-          find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec mv {} dist_combined/ \;
+          find dist -type f \( -name "*.whl" -o -name "*.tar.gz" \) -exec mv {} dist_combined/ \;
+          ls -la dist_combined/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
