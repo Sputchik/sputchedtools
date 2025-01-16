@@ -10,7 +10,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.0'
+__version__ = '0.30.1'
 
 # ----------------CLASSES-----------------
 
@@ -73,8 +73,6 @@ class Timer:
 
 		if self.echo_fmt:
 			print(self.format_output(self.diff))
-
-		return self.diff
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
