@@ -10,6 +10,30 @@ on:
         type: boolean
         required: false
         default: false
+      linux-x86_64:
+        description: 'Build for Linux x86_64'
+        type: boolean
+        default: true
+      linux-aarch64:
+        description: 'Build for Linux ARM64'
+        type: boolean
+        default: false
+      macos-x86_64:
+        description: 'Build for macOS x86_64'
+        type: boolean
+        default: false
+      macos-arm64:
+        description: 'Build for macOS ARM64'
+        type: boolean
+        default: true
+      windows-amd64:
+        description: 'Build for Windows AMD64'
+        type: boolean
+        default: true
+      windows-arm64:
+        description: 'Build for Windows ARM64'
+        type: boolean
+        default: true
 
 jobs:
   build_wheels:
@@ -18,13 +42,22 @@ jobs:
     if: startsWith(github.event.head_commit.message, '0.') || github.event_name == 'workflow_dispatch'
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            enabled: ${{ github.event.inputs.linux-x86_64 == 'true' || github.event.inputs.linux-aarch64 == 'true' }}
+          - os: macos-latest
+            platform: macos
+            enabled: ${{ github.event.inputs.macos-x86_64 == 'true' || github.event.inputs.macos-arm64 == 'true' }}
+          - os: windows-latest
+            platform: windows
+            enabled: ${{ github.event.inputs.windows-amd64 == 'true' || github.event.inputs.windows-arm64 == 'true' }}
+    
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up QEMU
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && github.event.inputs.linux-aarch64 == 'true'
         uses: docker/setup-qemu-action@v3
         with:
           platforms: arm64
@@ -62,9 +95,15 @@ jobs:
       - name: Build wheels
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
-          CIBW_ARCHS_LINUX: "${{ runner.os == 'Linux' && 'x86_64' || '' }}"
-          CIBW_ARCHS_MACOS: "arm64"
-          CIBW_ARCHS_WINDOWS: "AMD64 ARM64"
+          CIBW_ARCHS_LINUX: >-
+            ${{ github.event.inputs.linux-x86_64 == 'true' && 'x86_64' || '' }}
+            ${{ github.event.inputs.linux-aarch64 == 'true' && 'aarch64' || '' }}
+          CIBW_ARCHS_MACOS: >-
+            ${{ github.event.inputs.macos-x86_64 == 'true' && 'x86_64' || '' }}
+            ${{ github.event.inputs.macos-arm64 == 'true' && 'arm64' || '' }}
+          CIBW_ARCHS_WINDOWS: >-
+            ${{ github.event.inputs.windows-amd64 == 'true' && 'AMD64' || '' }}
+            ${{ github.event.inputs.windows-arm64 == 'true' && 'ARM64' || '' }}
           CIBW_BEFORE_ALL_LINUX: >
             if command -v apt-get >/dev/null; then
               apt-get update && apt-get install -y python3-dev build-essential
@@ -78,7 +117,7 @@ jobs:
 
       - uses: actions/upload-artifact@v3
         with:
-          name: wheels-${{ matrix.os }}
+          name: ${{ matrix.os }}
           path: dist/*.whl
 
   build_sdist:
@@ -106,9 +145,30 @@ jobs:
         with:
           name: distributions
           path: dist/*
+  
+  collect_wheels:
+    needs: [build_wheels, build_sdist]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: dist
+
+      - name: Move wheels to single directory
+        run: |
+          mkdir -p all_wheels
+          find dist -type f -name "*.whl" -o -name "*.tar.gz" -exec mv {} all_wheels/ \;
+
+      - name: Upload combined wheels
+        uses: actions/upload-artifact@v3
+        with:
+          name: all-wheels
+          path: all_wheels/*
 
   publish:
-    needs: [build_wheels, build_sdist]
+    needs: [build_wheels, build_sdist, collect_wheels]
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' &&
