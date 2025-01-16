@@ -4,12 +4,14 @@ on:
   push:
     branches:
       - main
+  release:
+    types: [published, created]
   workflow_dispatch:
 
 jobs:
   sync-branch:
     runs-on: ubuntu-latest
-    if: startsWith(github.event.head_commit.message, '0.') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.event.head_commit.message, '0.') || github.event_name == 'workflow_dispatch' || github.event_name == 'release'
     
     steps:
       - uses: actions/checkout@v4
