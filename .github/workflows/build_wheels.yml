@@ -29,13 +29,6 @@ jobs:
         with:
           platforms: arm64
 
-
-      - name: Set up QEMU
-        if: runner.os == 'Linux'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
       - uses: actions/setup-python@v4 
         with:
           python-version: '3.x'
@@ -56,13 +49,7 @@ jobs:
               yum install -y python3-devel gcc gcc-c++
             fi
           CIBW_ENVIRONMENT: "CYTHONIZE=1"
-          CIBW_ENVIRONMENT_LINUX: >-
-            QEMU_KVM=1
-            QEMU_CPU=max
-            QEMU_CORES=4
-            QEMU_RAM=4096
-            QEMU_OPTS="-enable-kvm -cpu max -smp 4 -accel tcg,thread=multi"
-        
+          CIBW_WORKING_DIR: "sputchedtools_original"
         run: cibuildwheel --output-dir dist
 
       - uses: actions/upload-artifact@v3
@@ -83,8 +70,10 @@ jobs:
 
       - name: Build sdist and pure wheel
         run: |
+          cd sputchedtools_original
           python -m pip install --upgrade pip build
           python -m build --sdist --wheel
+          mv dist/* ../dist/
           
       - uses: actions/upload-artifact@v3
         with:
@@ -96,8 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.publish == 'true' 
-    #  && startsWith(github.event.head_commit.message, '0.')
+      github.event.inputs.publish == 'true'
 
     steps:
       - uses: actions/checkout@v4
