@@ -49,8 +49,14 @@ jobs:
               yum install -y python3-devel gcc gcc-c++
             fi
           CIBW_ENVIRONMENT: "CYTHONIZE=1"
-          CIBW_WORKING_DIR: "sputchedtools_original"
-        run: cibuildwheel --output-dir dist
+          CIBW_ENVIRONMENT_LINUX: >-
+            QEMU_KVM=1
+            QEMU_CPU=max
+            QEMU_CORES=4
+            QEMU_RAM=4096
+            QEMU_OPTS="-enable-kvm -cpu max -smp 4 -accel tcg,thread=multi"
+        working-directory: sputchedtools_original
+        run: cibuildwheel --output-dir ../dist
 
       - uses: actions/upload-artifact@v3
         with:
