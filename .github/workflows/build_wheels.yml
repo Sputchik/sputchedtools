@@ -144,7 +144,6 @@ jobs:
     needs: [build_wheels, build_sdist, collect_wheels]
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' &&
       github.event.inputs.publish == 'true'
 
     steps:
