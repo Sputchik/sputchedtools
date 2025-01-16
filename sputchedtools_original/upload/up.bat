@@ -24,5 +24,5 @@ if %ErrorLevel% == 1 (
 
 for /D %%G in (".\src\*egg-info") do rmdir /S /Q "%%G"
 rmdir /S /Q  __pycache__ build
-del /S /Q *.c MANIFEST.in
+del /S /Q sputchedtools.c MANIFEST.in
 cd "%origin%"
