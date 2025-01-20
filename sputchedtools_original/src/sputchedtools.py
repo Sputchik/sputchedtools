@@ -10,7 +10,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.0'
+__version__ = '0.30.2'
 
 # ----------------CLASSES-----------------
 
@@ -606,7 +606,7 @@ class num:
 	def unshorten(
 		value: str,
 		_round: bool = True
-	) -> Union[float, int, str]:
+	) -> Union[float, str]:
 
 		"""
 		Accepts:
@@ -615,7 +615,7 @@ class num:
 			- _round: bool - wether returned value should be rounded to integer
 
 		Returns:
-			Unshortened float or int
+			Unshortened float
 
 		"""
 
@@ -635,8 +635,11 @@ class num:
 			return unshortened
 
 		except (ValueError, KeyError):
-			return value
-
+			try:
+				return float(value)
+			except ValueError:
+				return value
+		
 	@staticmethod
 	def decim_round(
 		value: float,
@@ -1143,7 +1146,7 @@ def decompress(
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
-		tarfile.open(fileobj=stream).extractall(output, filter = 'data')
+		tarfile.open(fileobj=stream).extractall(output)
 
 	else:
 		with open(output, 'wb') as f:
