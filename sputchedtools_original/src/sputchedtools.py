@@ -10,7 +10,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.2'
+__version__ = '0.30.0'
 
 # ----------------CLASSES-----------------
 
@@ -73,6 +73,8 @@ class Timer:
 
 		if self.echo_fmt:
 			print(self.format_output(self.diff))
+
+		return self.diff
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
@@ -544,6 +546,12 @@ class aio:
 		async with semaphore:
 			return await func(*args, **kwargs)
 
+try:
+	from .num_c import shorten as c_shorten, unshorten as c_unshorten
+	USE_C_IMPL = True
+except ImportError:
+	USE_C_IMPL = False
+
 class num:
 
 	"""
@@ -589,6 +597,9 @@ class num:
 
 		"""
 
+		if USE_C_IMPL and not suffixes:
+			return c_shorten(float(value), decimals)
+
 		absvalue = abs(value)
 		suffixes: list[str] = suffixes or num.suffixes
 		magnitude = suffixes[-1]
@@ -604,7 +615,7 @@ class num:
 	def unshorten(
 		value: str,
 		_round: bool = True
-	) -> Union[float, str]:
+	) -> Union[float, int, str]:
 
 		"""
 		Accepts:
@@ -613,9 +624,12 @@ class num:
 			- _round: bool - wether returned value should be rounded to integer
 
 		Returns:
-			Unshortened float
+			Unshortened float or int
 
 		"""
+
+		if USE_C_IMPL and _round:
+			return c_unshorten(value)
 
 		mp = value[-1].lower()
 		number = value[:-1]
@@ -633,11 +647,8 @@ class num:
 			return unshortened
 
 		except (ValueError, KeyError):
-			try:
-				return float(value)
-			except ValueError:
-				return value
-		
+			return value
+
 	@staticmethod
 	def decim_round(
 		value: float,
@@ -1144,7 +1155,7 @@ def decompress(
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
-		tarfile.open(fileobj=stream).extractall(output)
+		tarfile.open(fileobj=stream).extractall(output, filter = 'data')
 
 	else:
 		with open(output, 'wb') as f:
