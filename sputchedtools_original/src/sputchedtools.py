@@ -74,8 +74,6 @@ class Timer:
 		if self.echo_fmt:
 			print(self.format_output(self.diff))
 
-		return self.diff
-
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
 
