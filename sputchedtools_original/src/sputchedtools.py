@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.3'
+__version__ = '0.30.4'
 
 # ----------------CLASSES-----------------
 
@@ -394,6 +394,14 @@ class Config:
 		self.options = [options[i : i + per_page] for i in range(0, self.oplen, per_page)]
 		self.page_amount = len(self.options)
 
+		from sys import platform
+		if 'win' in platform or 'nt' in platform:
+			self.cli = self.win_cli
+		elif platform == 'linux' or 'darwin' in platform:
+			self.cli = self.unix_cli
+		else:
+			self.cli = self.custom_cli
+	
 	def set_page(self, index: int):
 		self.index = index % self.page_amount
 
@@ -401,7 +409,7 @@ class Config:
 		new_index = self.index + amount
 		self.index = new_index % self.page_amount
 
-	def win_cli(self):
+	def win_cli(self) -> dict[str, str]:
 		import msvcrt
 		self.index = 0
 		selected_option = 0
@@ -416,14 +424,14 @@ class Config:
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
-				toggle = f"[{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else "*" if option.required else ""
+				toggle = f" [{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				options_repr.append(f'{prefix} [{i + 1}] {toggle} {option.name} - {value}')
+				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name} - {value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -526,8 +534,11 @@ class Config:
 
 			elif key == b'\x1b':  # Escape key
 				break
+		
+		# Return all options
+		return {option.name: option.value for option in self.options}
 
-	def unix_cli(self):
+	def unix_cli(self) -> dict[str, str]:
 
 		import sys, tty, termios, os
 
@@ -561,14 +572,14 @@ class Config:
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
-				toggle = f"[{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else "*" if option.required else ""
+				toggle = f" [{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				options_repr.append(f'{prefix} [{i + 1}] {toggle} {option.name} - {value}')
+				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name} - {value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -642,14 +653,17 @@ class Config:
 				self.add_page(-1)
 			elif key == 'd':  # Alternative right
 				self.add_page(1)
+		
+		# Return all options
+		return {option.name: option.value for option in self.options}
 
-	def custom_cli(self):
+	def custom_cli(self) -> dict[str, str]:
 		self.index = 0
 
 		while True:
 			page = self.index + 1
 			options = self.options[self.index]
-			options_repr = '\n'.join(f'[{i + 1}] {f"[{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else "*" if option.required else ""} {option.name} - {option.value}' for i, option in enumerate(options))
+			options_repr = '\n'.join(f'[{i + 1}]{f" [{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""} {option.name} - {option.value}' for i, option in enumerate(options))
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
 			options_repr += '\nOption: '
 
@@ -687,6 +701,9 @@ class Config:
 
 			elif inp == 'q':
 				break
+		
+		# Return all options
+		return {option.name: option.value for option in self.options}
 
 class aio:
 
