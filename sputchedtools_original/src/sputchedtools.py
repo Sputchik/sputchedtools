@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.4'
+__version__ = '0.30.5'
 
 # ----------------CLASSES-----------------
 
@@ -391,6 +391,7 @@ class Config:
 		self.cbname = callback_option_name
 		self.oplen = len(options)
 
+		self.orig_options = options
 		self.options = [options[i : i + per_page] for i in range(0, self.oplen, per_page)]
 		self.page_amount = len(self.options)
 
@@ -536,7 +537,8 @@ class Config:
 				break
 		
 		# Return all options
-		return {option.name: option.value for option in self.options}
+		print('\033[2J\033[H', flush = True, end = '')
+		return {option.name: option.value for option in self.orig_options}
 
 	def unix_cli(self) -> dict[str, str]:
 
@@ -655,7 +657,8 @@ class Config:
 				self.add_page(1)
 		
 		# Return all options
-		return {option.name: option.value for option in self.options}
+		clear()
+		return {option.name: option.value for option in self.orig_options}
 
 	def custom_cli(self) -> dict[str, str]:
 		self.index = 0
@@ -703,7 +706,8 @@ class Config:
 				break
 		
 		# Return all options
-		return {option.name: option.value for option in self.options}
+		print()
+		return {option.name: option.value for option in self.orig_options}
 
 class aio:
 
