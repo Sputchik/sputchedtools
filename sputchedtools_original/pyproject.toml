@@ -1,11 +1,11 @@
-[build-system]
-requires = ["setuptools>=42", "wheel", "Cython>=3.0.0"]
-build-backend = "setuptools.build_meta"
+# [build-system]
+# requires = ["setuptools>=42", "wheel", "Cython>=3.0.0"]
+# build-backend = "setuptools.build_meta"
 
 [project]
 name = "sputchedtools"
 dynamic = ["version"]
-description = "Collection of Python utilities"
+# description = "Collection of Python utilities"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -29,5 +29,5 @@ python_files = ["test_*.py"]
 addopts = "-v --capture=no --tb=short"
 pythonpath = ["src"]
 
-[tool.cython-build-options]
-cache-dir = ".cython_cache"
+# [tool.cython-build-options]
+# cache-dir = ".cython_cache"

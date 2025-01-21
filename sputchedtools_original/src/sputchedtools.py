@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.2'
+__version__ = '0.30.3'
 
 # ----------------CLASSES-----------------
 
@@ -144,7 +144,7 @@ class ProgressBar:
 	@text.setter
 	def text(self, value: str):
 		val_len = len(value)
-		text_len = len(self._text)
+		text_len = len(self.__text)
 		self._text = value + ' ' * (text_len - val_len if text_len > val_len else 0)
 
 	def __iter__(self) -> 'ProgressBar':
@@ -360,6 +360,334 @@ class Anim:
 			self.done = True
 			self.thread.join()
 
+class Callbacks:
+	direct = 1
+	toggle = 2
+	callable = 3
+
+class Option:
+	def __init__(
+		self,
+		name: str,
+		value: str,
+		required: bool = False,
+		callback: Callbacks = Callbacks.direct,
+		toggled: bool = False
+	):
+		self.name = name
+		self.value = value
+		self.required = required
+		self.callback = callback
+		self.toggled = toggled
+
+class Config:
+	def __init__(
+		self,
+		options: list[Option],
+		per_page: int = 9,
+		callback_option_name: bool = True
+	):
+		self.per_page = per_page
+		self.cbname = callback_option_name
+		self.oplen = len(options)
+
+		self.options = [options[i : i + per_page] for i in range(0, self.oplen, per_page)]
+		self.page_amount = len(self.options)
+
+	def set_page(self, index: int):
+		self.index = index % self.page_amount
+
+	def add_page(self, amount: int = 1):
+		new_index = self.index + amount
+		self.index = new_index % self.page_amount
+
+	def win_cli(self):
+		import msvcrt
+		self.index = 0
+		selected_option = 0
+		editing = False
+		new_value = ''
+		cursor_pos = 0
+
+		while True:
+			page = self.index + 1
+			options = self.options[self.index]
+			options_repr = []
+
+			for i, option in enumerate(options):
+				prefix = '>' if i == selected_option else ' '
+				toggle = f"[{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else "*" if option.required else ""
+
+				if editing and i == selected_option:
+					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
+				else:
+					value = option.value
+
+				options_repr.append(f'{prefix} [{i + 1}] {toggle} {option.name} - {value}')
+
+			options_repr = '\n'.join(options_repr)
+			options_repr += f'\n\nPage {page}/{self.page_amount}'
+
+			print('\033[2J\033[H' + options_repr, flush = True)  # Clear screen and print options
+
+			if editing:
+				key = msvcrt.getch()
+				if key == b'\r':  # Enter - save value
+					options[selected_option].value = new_value
+					editing = False
+				elif key == b'\x1b':  # Escape - cancel editing
+					editing = False
+					new_value = ''
+					cursor_pos = 0
+				elif key == b'\xe0':  # Special keys
+					key = msvcrt.getch()
+					if key == b'K':  # Left arrow
+						cursor_pos = max(0, cursor_pos - 1)
+					elif key == b'M':  # Right arrow
+						cursor_pos = min(len(new_value), cursor_pos + 1)
+					elif key == b'G':  # Home
+						cursor_pos = 0
+					elif key == b'O':  # End
+						cursor_pos = len(new_value)
+				elif key == b'\x08':  # Backspace
+					if cursor_pos > 0:
+						new_value = new_value[:cursor_pos-1] + new_value[cursor_pos:]
+						cursor_pos -= 1
+				else:
+					try:
+						char = key.decode('utf-8')
+						new_value = new_value[:cursor_pos] + char + new_value[cursor_pos:]
+						cursor_pos += 1
+					except UnicodeDecodeError:
+						pass
+				continue
+
+			key = msvcrt.getch()
+
+			if key == b'\xe0':  # Special keys prefix
+				key = msvcrt.getch()
+				if key == b'H':  # Up arrow
+					selected_option = (selected_option - 1) % len(options)
+				elif key == b'P':  # Down arrow
+					selected_option = (selected_option + 1) % len(options)
+				elif key == b'M':  # Right arrow
+					self.add_page(1)
+					selected_option = 0
+				elif key == b'K':  # Left arrow
+					self.add_page(-1)
+					selected_option = 0
+
+			elif key == b'\r':  # Enter key
+				option = options[selected_option]
+				if option.callback == Callbacks.toggle:
+					option.toggled = not option.toggled
+				elif option.callback == Callbacks.callable:
+					if self.cbname:
+						option.callback(option.name)
+					else:
+						option.callback(self.index * self.per_page + selected_option)
+				elif option.callback == Callbacks.direct:
+					editing = True
+					new_value = option.value
+					cursor_pos = len(new_value)
+
+			elif key == b'p':
+				inp = input('Page: ')
+
+				try:
+					page = int(inp) - 1
+					self.set_page(page)
+					selected_option = 0
+
+				except ValueError:
+					pass
+
+			elif key.isdigit():  # Number keys
+				num = int(key.decode()) - 1
+				if 0 <= num < len(options):
+					selected_option = num
+
+			elif key == b'w': # Move up
+				selected_option = (selected_option - 1) % len(options)
+
+			elif key == b's': # Move down
+				selected_option = (selected_option + 1) % len(options)
+
+			elif key == b'a': # Previous page
+				self.add_page(-1)
+				selected_option = 0
+
+			elif key == b'd': # Next page
+				self.add_page(1)
+				selected_option = 0
+
+			elif key == b'q':  # Quit
+				break
+
+			elif key == b'\x1b':  # Escape key
+				break
+
+	def unix_cli(self):
+
+		import sys, tty, termios, os
+
+		def getch():
+			fd = sys.stdin.fileno()
+			old_settings = termios.tcgetattr(fd)
+			try:
+				tty.setraw(sys.stdin.fileno())
+				ch = sys.stdin.read(1)
+				if ch == '\x1b':  # escape sequences
+					ch2 = sys.stdin.read(1)
+					if ch2 == '[':
+						ch3 = sys.stdin.read(1)
+						return f'\x1b[{ch3}'
+				return ch
+			finally:
+				termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+		clear = lambda: os.system('clear')
+		self.index = 0
+		selected_option = 0
+		editing = False
+		new_value = ''
+		cursor_pos = 0
+
+		while True:
+			clear()
+			page = self.index + 1
+			options = self.options[self.index]
+			options_repr = []
+
+			for i, option in enumerate(options):
+				prefix = '>' if i == selected_option else ' '
+				toggle = f"[{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else "*" if option.required else ""
+
+				if editing and i == selected_option:
+					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
+				else:
+					value = option.value
+
+				options_repr.append(f'{prefix} [{i + 1}] {toggle} {option.name} - {value}')
+
+			options_repr = '\n'.join(options_repr)
+			options_repr += f'\n\nPage {page}/{self.page_amount}'
+			print(options_repr)
+
+			key = getch()
+
+			if editing:
+				if key == '\r':  # Enter
+					options[selected_option].value = new_value
+					editing = False
+				elif key == '\x1b':  # Escape
+					editing = False
+					new_value = ''
+					cursor_pos = 0
+				elif key == '\x1b[D':  # Left arrow
+					cursor_pos = max(0, cursor_pos - 1)
+				elif key == '\x1b[C':  # Right arrow
+					cursor_pos = min(len(new_value), cursor_pos + 1)
+				elif key == '\x7f':  # Backspace
+					if cursor_pos > 0:
+						new_value = new_value[:cursor_pos-1] + new_value[cursor_pos:]
+						cursor_pos -= 1
+				elif len(key) == 1 and 32 <= ord(key) <= 126:  # Printable chars
+					new_value = new_value[:cursor_pos] + key + new_value[cursor_pos:]
+					cursor_pos += 1
+				continue
+
+			if key == '\x1b[A':  # Up arrow
+				selected_option = (selected_option - 1) % len(options)
+			elif key == '\x1b[B':  # Down arrow
+				selected_option = (selected_option + 1) % len(options)
+			elif key == '\x1b[C':  # Right arrow
+				self.add_page(1)
+				selected_option = 0
+			elif key == '\x1b[D':  # Left arrow
+				self.add_page(-1)
+				selected_option = 0
+			elif key == '\r':  # Enter
+				option = options[selected_option]
+				if option.callback == Callbacks.toggle:
+					option.toggled = not option.toggled
+				elif option.callback == Callbacks.callable:
+					if self.cbname:
+						option.callback(option.name)
+					else:
+						option.callback(self.index * self.per_page + selected_option)
+				elif option.callback == Callbacks.direct:
+					editing = True
+					new_value = option.value
+					cursor_pos = len(new_value)
+			elif key in ('q', '\x1b'):  # q or Escape
+				break
+			elif key == 'p':  # Page select
+				print("\nPage: ", end='', flush=True)
+				try:
+					page = int(input()) - 1
+					self.set_page(page)
+					selected_option = 0
+				except ValueError:
+					pass
+			elif key.isdigit():  # Number selection
+				num = int(key) - 1
+				if 0 <= num < len(options):
+					selected_option = num
+			elif key == 'w':  # Alternative up
+				selected_option = (selected_option - 1) % len(options)
+			elif key == 's':  # Alternative down
+				selected_option = (selected_option + 1) % len(options)
+			elif key == 'a':  # Alternative left
+				self.add_page(-1)
+			elif key == 'd':  # Alternative right
+				self.add_page(1)
+
+	def custom_cli(self):
+		self.index = 0
+
+		while True:
+			page = self.index + 1
+			options = self.options[self.index]
+			options_repr = '\n'.join(f'[{i + 1}] {f"[{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else "*" if option.required else ""} {option.name} - {option.value}' for i, option in enumerate(options))
+			options_repr += f'\n\nPage {page}/{self.page_amount}'
+			options_repr += '\nOption: '
+
+			with NewLiner():
+				inp = input(options_repr)
+
+			if inp.isdigit():
+				num = int(inp) - 1
+				if 0 <= num < len(options):
+					option = options[num]
+					if option.callback == Callbacks.toggle:
+						option.toggled = not option.toggled
+					elif option.callback == Callbacks.callable:
+						if self.cbname:
+							option.callback(option.name)
+						else:
+							option.callback(self.index * self.per_page + num)
+					elif option.callback == Callbacks.direct:
+						new_value = input(f"New value for {option.name}: ")
+						option.value = new_value
+
+			elif inp == 'p':
+				page = input("Page: ")
+				try:
+					page = int(page) - 1
+					self.set_page(page)
+				except ValueError:
+					pass
+
+			elif inp == 'a':
+				self.add_page(-1)
+
+			elif inp == 'd':
+				self.add_page(1)
+
+			elif inp == 'q':
+				break
+
 class aio:
 
 	"""
@@ -544,12 +872,6 @@ class aio:
 		async with semaphore:
 			return await func(*args, **kwargs)
 
-try:
-	from .num_c import shorten as c_shorten, unshorten as c_unshorten
-	USE_C_IMPL = True
-except ImportError:
-	USE_C_IMPL = False
-
 class num:
 
 	"""
@@ -595,9 +917,6 @@ class num:
 
 		"""
 
-		if USE_C_IMPL and not suffixes:
-			return c_shorten(float(value), decimals)
-
 		absvalue = abs(value)
 		suffixes: list[str] = suffixes or num.suffixes
 		magnitude = suffixes[-1]
@@ -613,7 +932,7 @@ class num:
 	def unshorten(
 		value: str,
 		_round: bool = True
-	) -> Union[float, int, str]:
+	) -> Union[float, str]:
 
 		"""
 		Accepts:
@@ -622,12 +941,9 @@ class num:
 			- _round: bool - wether returned value should be rounded to integer
 
 		Returns:
-			Unshortened float or int
+			Unshortened float
 
 		"""
-
-		if USE_C_IMPL and _round:
-			return c_unshorten(value)
 
 		mp = value[-1].lower()
 		number = value[:-1]
@@ -645,7 +961,10 @@ class num:
 			return unshortened
 
 		except (ValueError, KeyError):
-			return value
+			try:
+				return float(value)
+			except ValueError:
+				return value
 
 	@staticmethod
 	def decim_round(
@@ -795,9 +1114,7 @@ class MC_VersionList:
 
 class MC_Versions:
 	def __init__(self):
-		import asyncio
 		from re import findall
-
 		self.findall = findall
 		self.manifest_url = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
 
@@ -808,14 +1125,14 @@ class MC_Versions:
 		# Full pattern allowing multiple items separated by commas
 		self.full_pattern = rf'{item_pattern}(?:,\s*{item_pattern})*'
 
-		try:
-			loop = asyncio.get_event_loop()
-		except(RuntimeError, DeprecationWarning):
-			enhance_loop()
-			loop = asyncio.new_event_loop()
+		self.release_versions = []
 
-		loop.run_until_complete(self.fetch_version_manifest())
+	@classmethod
+	async def init(cls):
+		self = cls()
+		await self.fetch_version_manifest()
 		self.latest = self.release_versions[-1]
+		return self
 
 	def sort(self, mc_vers: Iterable[str]) -> MC_VersionList:
 		filtered_vers = set()
@@ -1153,7 +1470,12 @@ def decompress(
 	stream = io.BytesIO(decompressed)
 
 	if tarfile.is_tarfile(stream):
-		tarfile.open(fileobj=stream).extractall(output, filter = 'data')
+		import sys
+
+		if sys.version_info >= (3, 12):
+			tarfile.open(fileobj=stream).extractall(output, filter = 'data')
+		else:
+			tarfile.open(fileobj=stream).extractall(output)
 
 	else:
 		with open(output, 'wb') as f:

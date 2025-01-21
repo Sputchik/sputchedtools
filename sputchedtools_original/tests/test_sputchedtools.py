@@ -1,10 +1,16 @@
 import pytest
-from sputchedtools import *
 import asyncio
 import aiohttp
 import random
 import os
 import shutil
+
+try:
+	from src.sputchedtools import *
+except ImportError:
+	import sys
+	sys.path.append('../src')
+	from sputchedtools import *
 
 enhance_loop()
 
@@ -16,7 +22,8 @@ num.suffixes = num.fileSize_suffixes
 sl = 0.001
 start, end = 20, 100
 
-async def aio_test(**kwargs):
+@pytest.mark.asyncio
+async def test_aio(**kwargs):
 	response = await aio.get(
 		url,
 		**kwargs
@@ -33,8 +40,9 @@ def test_num():
 			e = num.beautify(d, -1)
 			print(d, e, num.unshorten(e), sep = ' - ')
 
-def test_MC_Versions():
-	mc = MC_Versions()
+@pytest.mark.asyncio
+async def test_MC_Versions():
+	mc = await MC_Versions.init()
 	versions = mc.release_versions
 	with Timer('MC Sorting: %ms'): sorted_versions = mc.sort(versions)
 	with Timer('MC Range: %ms'): print(mc.get_range(sorted_versions))
@@ -111,10 +119,10 @@ def test_anim():
 	print('Was there text before????')
 
 if __name__ == '__main__':
-	asyncio.run(aio_test(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
+	asyncio.run(test_aio(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
+	asyncio.run(test_MC_Versions())
 		
 	test_num()
-	test_MC_Versions()
 	test_compress()
 	test_decompress()
 	test_anim()
