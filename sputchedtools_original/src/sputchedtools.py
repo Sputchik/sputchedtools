@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.5'
+__version__ = '0.30.6'
 
 # ----------------CLASSES-----------------
 
@@ -402,7 +402,7 @@ class Config:
 			self.cli = self.unix_cli
 		else:
 			self.cli = self.custom_cli
-	
+
 	def set_page(self, index: int):
 		self.index = index % self.page_amount
 
@@ -535,7 +535,7 @@ class Config:
 
 			elif key == b'\x1b':  # Escape key
 				break
-		
+
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
 		return {option.name: option.value for option in self.orig_options}
@@ -655,7 +655,7 @@ class Config:
 				self.add_page(-1)
 			elif key == 'd':  # Alternative right
 				self.add_page(1)
-		
+
 		# Return all options
 		clear()
 		return {option.name: option.value for option in self.orig_options}
@@ -704,7 +704,7 @@ class Config:
 
 			elif inp == 'q':
 				break
-		
+
 		# Return all options
 		print()
 		return {option.name: option.value for option in self.orig_options}
@@ -982,10 +982,7 @@ class num:
 			return unshortened
 
 		except (ValueError, KeyError):
-			try:
-				return float(value)
-			except ValueError:
-				return value
+			return float(value) # Raises ValueError if value is not a number
 
 	@staticmethod
 	def decim_round(
