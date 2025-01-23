@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.8'
+__version__ = '0.30.9'
 
 # ----------------CLASSES-----------------
 
@@ -407,13 +407,14 @@ class Config:
 		self.index = new_index % self.page_amount
 
 	def win_cli(self) -> dict[str, str]:
-		import msvcrt
+		import msvcrt, os
+		os.system('')
 		self.index = 0
 		selected_option = 0
+		cursor_pos = 0
 		editing = False
 		new_value = ''
-		cursor_pos = 0
-
+		
 		while True:
 			page = self.index + 1
 			options = self.options[self.index]
@@ -433,8 +434,7 @@ class Config:
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
-
-			print('\033[2J\033[H' + options_repr, flush = True)  # Clear screen and print options
+			print('\033[2J\033[H' + options_repr, flush = True, end = '')
 
 			if editing:
 				key = msvcrt.getch()
