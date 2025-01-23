@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.6'
+__version__ = '0.30.8'
 
 # ----------------CLASSES-----------------
 
@@ -71,8 +71,6 @@ class Timer:
 
 		if self.echo_fmt:
 			print(self.format_output(self.diff))
-
-		return self.diff
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
@@ -371,14 +369,12 @@ class Option:
 		name: str,
 		value: str,
 		required: bool = False,
-		callback: Callbacks = Callbacks.direct,
-		toggled: bool = False
+		callback: Callbacks = Callbacks.direct
 	):
 		self.name = name
 		self.value = value
 		self.required = required
 		self.callback = callback
-		self.toggled = toggled
 
 class Config:
 	def __init__(
@@ -425,14 +421,15 @@ class Config:
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
-				toggle = f" [{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
+				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name} - {value}')
+				value = f' - {value}' if option.callback != Callbacks.toggle else ''
+				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -469,6 +466,7 @@ class Config:
 						cursor_pos += 1
 					except UnicodeDecodeError:
 						pass
+
 				continue
 
 			key = msvcrt.getch()
@@ -489,7 +487,7 @@ class Config:
 			elif key == b'\r':  # Enter key
 				option = options[selected_option]
 				if option.callback == Callbacks.toggle:
-					option.toggled = not option.toggled
+					option.value = not option.value
 				elif option.callback == Callbacks.callable:
 					if self.cbname:
 						option.callback(option.name)
@@ -574,14 +572,15 @@ class Config:
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
-				toggle = f" [{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
+				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name} - {value}')
+				value = f' - {value}' if option.callback != Callbacks.toggle else ''
+				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -623,7 +622,7 @@ class Config:
 			elif key == '\r':  # Enter
 				option = options[selected_option]
 				if option.callback == Callbacks.toggle:
-					option.toggled = not option.toggled
+					option.value = not option.value
 				elif option.callback == Callbacks.callable:
 					if self.cbname:
 						option.callback(option.name)
@@ -666,8 +665,14 @@ class Config:
 		while True:
 			page = self.index + 1
 			options = self.options[self.index]
-			options_repr = '\n'.join(f'[{i + 1}]{f" [{'*' if option.toggled else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""} {option.name} - {option.value}' for i, option in enumerate(options))
-			options_repr += f'\n\nPage {page}/{self.page_amount}'
+
+			options_repr = ''
+			for i, option in enumerate(options):
+				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
+				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
+				options_repr += (f'[{i + 1}]{toggle} {option.name}{value}\n')
+
+			options_repr += f'\nPage {page}/{self.page_amount}'
 			options_repr += '\nOption: '
 
 			with NewLiner():
@@ -678,7 +683,7 @@ class Config:
 				if 0 <= num < len(options):
 					option = options[num]
 					if option.callback == Callbacks.toggle:
-						option.toggled = not option.toggled
+						option.value = not option.value
 					elif option.callback == Callbacks.callable:
 						if self.cbname:
 							option.callback(option.name)
@@ -706,7 +711,6 @@ class Config:
 				break
 
 		# Return all options
-		print()
 		return {option.name: option.value for option in self.orig_options}
 
 class aio:
