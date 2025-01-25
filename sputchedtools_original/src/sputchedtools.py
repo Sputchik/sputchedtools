@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.31.0'
+__version__ = '0.31.1'
 
 # ----------------CLASSES-----------------
 
@@ -97,8 +97,7 @@ class ProgressBar:
 		iterator: Optional[Union[Iterator[Any], Iterable[Any]]] = None,
 		text: str = 'Processing...',
 		task_amount: Optional[int] = None,
-		final_text: str = "Done\n",
-		tasks: Optional[Iterable[Any]] = None
+		final_text: str = "Done\n"
 	):
 
 		if iterator and not isinstance(iterator, Iterator):
@@ -111,12 +110,10 @@ class ProgressBar:
 		if task_amount is None:
 			if iterator and not hasattr(iterator, '__len__'):
 				raise AttributeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
-			elif tasks and not hasattr(tasks, '__len__'):
-				raise AttributeError(f"You didn't provide task_amount for Async Iterator\n\nType: {type(tasks)}\nAttrs: {dir(tasks)}")
+
 			elif iterator:
 				self.task_amount = iterator.__len__()
-			elif tasks:
-				self.task_amount = tasks.__len__()
+
 		else:
 			self.task_amount = task_amount
 
@@ -128,12 +125,6 @@ class ProgressBar:
 		self._text = text
 		self.completed_tasks = 0
 		self.final_text = final_text
-
-		if tasks:
-			if hasattr(tasks, '__aiter__'):
-				self.tasks = tasks
-			else:
-				raise ValueError("tasks must be an async iterator or None")
 
 	@property
 	def text(self) -> str:
@@ -159,16 +150,18 @@ class ProgressBar:
 			raise
 
 	async def __aiter__(self) -> 'ProgressBar':
-		if not hasattr(self, 'tasks'):
+		if not hasattr(self, 'iterator'):
 			raise ValueError("You didn't specify coroutine iterator")
+
 		self.update(0)
 		return self
 
 	async def __anext__(self) -> Any:
 		try:
-			task = await self.tasks.__anext__()
+			task = await self.iterator.__anext__()
 			await self.update()
 			return task
+
 		except StopAsyncIteration:
 			await self.finish()
 			raise
@@ -184,32 +177,32 @@ class ProgressBar:
 	def update(self, increment: int = 1):
 		self.completed_tasks += increment
 		self.print_progress()
-
-	async def aupdate(self, increment: int = 1):
-		self.completed_tasks += increment
-		self.print_progress()
-
+	
 	def print_progress(self):
 		self.flush(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
 
-	async def gather(self, tasks: Iterable[Coroutine]) -> list[Any]:
+	async def gather(self, tasks: Optional[Iterable[Coroutine]]) -> list[Any]:
 		self.update(0)
+		tasks = tasks or self.iterator
+		assert tasks, "You didn't provide any tasks"
 		results = []
 
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
-			await self.aupdate()
+			await self.update()
 			results.append(result)
 
 		self.finish()
 		return results
 
-	async def as_completed(self, tasks: Iterable[Coroutine]):
+	async def as_completed(self, tasks: Optional[Iterable[Coroutine]]):
 		self.update(0)
+		tasks = tasks or self.iterator
+		assert tasks, "You didn't provide any tasks"
 
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
-			await self.aupdate()
+			await self.update()
 			yield result
 
 		self.finish()
