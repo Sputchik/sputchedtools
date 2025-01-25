@@ -34,6 +34,8 @@ async def test_aio(**kwargs):
 		# print('\n', data if not isinstance(data, str) else data[:30], sep = '')
 
 def test_num():
+	num.suffixes = ['', 'K', 'M', 'B', 'T', 1000]
+	
 	with NewLiner(), Timer():
 		for i in range(num_test_iters):
 			d = random.uniform(-100000, 100000)
@@ -50,7 +52,8 @@ async def test_MC_Versions():
 
 def test_compress():
 	files = (_compress_file, compress_folder)
-
+	num.suffixes = num.fileSize_suffixes
+	
 	with NewLiner():
 		for file in files:
 			for algo in algorithms:

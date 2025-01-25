@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.30.9'
+__version__ = '0.31.0'
 
 # ----------------CLASSES-----------------
 
@@ -271,6 +271,7 @@ class Anim:
 				return len(
 					str(chars[-1])
 				)
+
 			else:
 				raise TypeError(f'Provided char list has neither `__len__` nor `__str__` attribute')
 
@@ -366,15 +367,28 @@ class Callbacks:
 class Option:
 	def __init__(
 		self,
-		name: str,
-		value: str,
-		required: bool = False,
-		callback: Callbacks = Callbacks.direct
+		name: str = '',
+		value: str = '',
+		callback: Callbacks = Callbacks.direct,
+		values: Optional[list[str]] = None
 	):
+		'''
+		name: str - Option name
+		value: str - Option default value
+		callback: Callbacks - Option callback type
+			direct: 1 - Direct in-console editing
+			toggle: 2 - Toggle option. Note that `value` won't be displayed
+			callable: 3 - Custom callback function. Receives option name or index (configurable in `Config`), returned value will be set as option value
+
+		values: list[str] - Option values
+		'''
+
 		self.name = name
 		self.value = value
-		self.required = required
 		self.callback = callback
+		self.values = values
+		if values and value not in values:
+			self.value = values[0]
 
 class Config:
 	def __init__(
@@ -414,7 +428,7 @@ class Config:
 		cursor_pos = 0
 		editing = False
 		new_value = ''
-		
+
 		while True:
 			page = self.index + 1
 			options = self.options[self.index]
@@ -422,14 +436,21 @@ class Config:
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
-				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
+				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				value = f' - {value}' if option.callback != Callbacks.toggle else ''
+				if option.values:
+					current_idx = option.values.index(option.value)
+					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.values) else ""}'
+				elif option.callback != Callbacks.toggle:
+					value = f' - {value}'
+				else:
+					value = ''
+
 				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name}{value}')
 
 			options_repr = '\n'.join(options_repr)
@@ -478,11 +499,21 @@ class Config:
 				elif key == b'P':  # Down arrow
 					selected_option = (selected_option + 1) % len(options)
 				elif key == b'M':  # Right arrow
-					self.add_page(1)
-					selected_option = 0
+					option = options[selected_option]
+					if option.values:
+						current_idx = option.values.index(option.value)
+						option.value = option.values[(current_idx + 1) % len(option.values)]
+					else:
+						self.add_page(1)
+						selected_option = 0
 				elif key == b'K':  # Left arrow
-					self.add_page(-1)
-					selected_option = 0
+					option = options[selected_option]
+					if option.values:
+						current_idx = option.values.index(option.value)
+						option.value = option.values[(current_idx - 1) % len(option.values)]
+					else:
+						self.add_page(-1)
+						selected_option = 0
 
 			elif key == b'\r':  # Enter key
 				option = options[selected_option]
@@ -493,7 +524,10 @@ class Config:
 						option.callback(option.name)
 					else:
 						option.callback(self.index * self.per_page + selected_option)
-				elif option.callback == Callbacks.direct:
+				elif option.values:
+					current_idx = option.values.index(option.value)
+					option.value = option.values[(current_idx + 1) % len(option.values)]
+				else:
 					editing = True
 					new_value = option.value
 					cursor_pos = len(new_value)
@@ -572,14 +606,21 @@ class Config:
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
-				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
+				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				value = f' - {value}' if option.callback != Callbacks.toggle else ''
+				if option.values:
+					current_idx = option.values.index(option.value)
+					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.values) else ""}'
+				elif option.callback != Callbacks.toggle:
+					value = f' - {value}'
+				else:
+					value = ''
+
 				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name}{value}')
 
 			options_repr = '\n'.join(options_repr)
@@ -614,11 +655,21 @@ class Config:
 			elif key == '\x1b[B':  # Down arrow
 				selected_option = (selected_option + 1) % len(options)
 			elif key == '\x1b[C':  # Right arrow
-				self.add_page(1)
-				selected_option = 0
+				option = options[selected_option]
+				if option.values:
+					current_idx = option.values.index(option.value)
+					option.value = option.values[(current_idx + 1) % len(option.values)]
+				else:
+					self.add_page(1)
+					selected_option = 0
 			elif key == '\x1b[D':  # Left arrow
-				self.add_page(-1)
-				selected_option = 0
+				option = options[selected_option]
+				if option.values:
+					current_idx = option.values.index(option.value)
+					option.value = option.values[(current_idx - 1) % len(option.values)]
+				else:
+					self.add_page(-1)
+					selected_option = 0
 			elif key == '\r':  # Enter
 				option = options[selected_option]
 				if option.callback == Callbacks.toggle:
@@ -628,7 +679,10 @@ class Config:
 						option.callback(option.name)
 					else:
 						option.callback(self.index * self.per_page + selected_option)
-				elif option.callback == Callbacks.direct:
+				elif option.values:
+					current_idx = option.values.index(option.value)
+					option.value = option.values[(current_idx + 1) % len(option.values)]
+				else:
 					editing = True
 					new_value = option.value
 					cursor_pos = len(new_value)
@@ -668,7 +722,7 @@ class Config:
 
 			options_repr = ''
 			for i, option in enumerate(options):
-				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else " *" if option.required else ""
+				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
 				options_repr += (f'[{i + 1}]{toggle} {option.name}{value}\n')
 
@@ -1061,66 +1115,6 @@ class num:
 	def beautify(value: Union[int, float], decimals: int = -1, precission: int = 20) -> str:
 		return num.shorten(float(num.decim_round(value, decimals, precission = precission)), decimals)
 
-class Web3Misc:
-
-	"""
-	Methods:
-		- gas_monitor()
-		- gas_price_monitor()
-		- nonce_monitor()
-		- get_nonce()
-
-	Attributes:
-		- web3: web3.Web3 instance
-
-	"""
-
-	def __init__(self, web3):
-
-		self.web3 = web3
-		self.gas = None
-		self.gas_price = None
-		self.nonce = None
-
-		from time import sleep
-		self.sleep = sleep
-
-	def gas_monitor(
-		self,
-		token_contract,
-		sender: str,
-		period: Union[float, int] = 10,
-		multiply_by: float = 1.0
-	):
-		dead = '0x000000000000000000000000000000000000dEaD'
-
-		while True:
-			self.gas = round(token_contract.functions.transfer(dead, 0).estimate_gas({'from': sender}) * multiply_by)
-			self.sleep(period)
-
-	def gas_price_monitor(
-		self,
-		period: Union[float, int] = 10,
-		multiply_by: float = 1.0
-	):
-
-		while True:
-			self.gas_price = round(self.web3.eth.gas_price * multiply_by)
-			self.sleep(period)
-
-	def nonce_monitor(
-		self,
-		address: str,
-		period: Union[float, int] = 10
-	):
-
-		while True:
-			self.nonce = self.web3.eth.get_transaction_count(address)
-			self.sleep(period)
-
-	def get_nonce(self, address: str) -> int:
-		return self.web3.eth.get_transaction_count(address)
-
 # -------------MINECRAFT-VERSIONING-LOL-------------
 
 class MC_VersionList:
@@ -1135,6 +1129,10 @@ class MC_VersionList:
 		# self.map = {version: index for version, index in zip(versions, indices)}
 
 class MC_Versions:
+	'''
+	Initialize via `await MC_Versions.init()`
+	'''
+
 	def __init__(self):
 		from re import findall
 		self.findall = findall
@@ -1282,6 +1280,12 @@ def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Op
 		return None, None
 
 def write_content(content: Union[str, bytes], output: Union[Literal[False], str, IO[bytes]]) -> Union[int, bytes]:
+	'''
+	If output has `write` attribute, writes content to it and returns written bytes
+	If output is False, returns content
+	Otherwise writes content to file and returns written bytes, Or raises exception if output is not a valid path
+	'''
+
 	_, content = get_content(content)
 
 	if hasattr(output, 'write'):
