@@ -1,6 +1,6 @@
 # SputchedTools
 
-Simple, lazy-import, powerful multi-purpose module, initially created to reduce repetitive functions definitions across projects
+Simple, lazy-import, powerful multi-purpose module, initially created to reduce repetitive definitions across projects
 
 ## Installation
 
@@ -86,7 +86,7 @@ results: dict[str] = Config(
 
 ### Methods:
  - aio.request()
-	- aiohttp/httx/niquests wrapper
+	- aiohttp/httpx/niquests wrapper
  - aio.get()
 	- aio.request('GET') wrapper
  - aio.open()
