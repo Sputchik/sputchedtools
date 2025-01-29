@@ -1487,8 +1487,10 @@ def decompress(
 	import tarfile, io
 
 	stream = io.BytesIO(decompressed)
-
-	if tarfile.is_tarfile(stream):
+	is_tar = tarfile.is_tarfile(stream)
+	stream.seek(0)
+	
+	if is_tar:
 		import sys
 
 		if sys.version_info >= (3, 12):
