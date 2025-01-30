@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.31.1'
+__version__ = '0.31.2'
 
 # ----------------CLASSES-----------------
 
@@ -177,7 +177,7 @@ class ProgressBar:
 	def update(self, increment: int = 1):
 		self.completed_tasks += increment
 		self.print_progress()
-	
+
 	def print_progress(self):
 		self.flush(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
 
@@ -1488,15 +1488,15 @@ def decompress(
 
 	stream = io.BytesIO(decompressed)
 	is_tar = tarfile.is_tarfile(stream)
-	stream.seek(0)
-	
+
 	if is_tar:
 		import sys
+		stream.seek(0)
 
 		if sys.version_info >= (3, 12):
-			tarfile.open(fileobj=stream).extractall(output, filter = 'data')
+			tarfile.open(fileobj = stream).extractall(output, filter = 'data')
 		else:
-			tarfile.open(fileobj=stream).extractall(output)
+			tarfile.open(fileobj = stream).extractall(output)
 
 	else:
 		with open(output, 'wb') as f:
