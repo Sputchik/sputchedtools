@@ -159,7 +159,7 @@ class ProgressBar:
 	async def __anext__(self) -> Any:
 		try:
 			task = await self.iterator.__anext__()
-			await self.update()
+			self.update()
 			return task
 
 		except StopAsyncIteration:
@@ -189,7 +189,7 @@ class ProgressBar:
 
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
-			await self.update()
+			self.update()
 			results.append(result)
 
 		self.finish()
@@ -202,7 +202,7 @@ class ProgressBar:
 
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
-			await self.update()
+			self.update()
 			yield result
 
 		self.finish()
