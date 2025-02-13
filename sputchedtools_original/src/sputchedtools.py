@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.31.2'
+__version__ = '0.31.4'
 
 # ----------------CLASSES-----------------
 
@@ -837,7 +837,7 @@ class aio:
 
 				try:
 					result = getattr(response, item)
-
+					
 					if inspect.isfunction(result):
 						result = result()
 					elif inspect.iscoroutinefunction(result):
@@ -895,6 +895,41 @@ class aio:
 		**kwargs,
 	) -> list[Any]:
 		return await aio.request('POST', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
+	
+	@staticmethod
+	async def fuckoff(
+		method: RequestMethods,
+		url: str,
+		session,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]],
+		filter: Callable[[list[Any]], bool] = lambda response: response.status_code == 200,
+		interval: None | float = 5.0,
+		retries: int = -1,
+		**request_args
+	) -> list[Any]:
+		
+		import asyncio
+
+		while retries > 0:
+			items = await aio.request(
+				method,
+				url,
+				toreturn = toreturn,
+				session = session,
+				raise_exceptions = True,
+				**request_args
+			)
+			is_ok = filter(items)
+
+			if is_ok:
+				return items
+
+			elif retries > 0:
+				await asyncio.sleep(interval)
+			
+			retries -= 1
+		
+		return [None for i in range(len(items))]
 
 	@staticmethod
 	async def open(
@@ -1014,6 +1049,9 @@ class num:
 
 		Returns:
 			Unshortened float
+		
+		Raises:
+			ValueError: if provided value is not a number
 
 		"""
 
@@ -1240,6 +1278,54 @@ def enhance_loop() -> bool:
 	except ImportError:
 		return False
 
+def setup_logger(name: str, dir: str = 'logs/'):
+	"""
+	Sets up minimalistic logger with file (all levels) and console (debug<) handlers
+	Using queue.Queue to exclude logging from main thread
+	"""
+
+	import logging
+	import logging.handlers
+	import os
+	from queue import Queue
+
+	if not os.path.exists(dir):
+		os.makedirs(dir)
+	
+	open(f'{dir}/{name}.log', 'w').write('')
+	
+	logger = logging.getLogger(name)
+	logger.setLevel(logging.DEBUG)
+
+	log_queue = Queue()
+	queue_handler = logging.handlers.QueueHandler(log_queue)
+	file_handler = logging.FileHandler(f'logs/{name}.log')
+
+	console_handler = logging.StreamHandler()
+	console_handler.setLevel(logging.INFO)
+
+	formatter = logging.Formatter(
+		'%(levelname)s - %(asctime)s.%(msecs)03d - %(message)s',
+		datefmt = '%H:%M:%S'
+	)
+	file_handler.setFormatter(formatter)
+	console_handler.setFormatter(formatter)
+
+	# Setup queue listener
+	listeners = [file_handler, console_handler]
+	queue_listener = logging.handlers.QueueListener(
+		log_queue,
+		*listeners,
+		respect_handler_level = True
+	)
+	queue_listener.start()
+
+	# Store listener reference to prevent garbage collection
+	logger.addHandler(queue_handler)
+	logger.queue_listener = queue_listener
+
+	return logger
+
 def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Optional[bytes]]:
 	"""
 	Returns source byte content
@@ -1272,11 +1358,12 @@ def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Op
 
 		return None, None
 
-def write_content(content: Union[str, bytes], output: Union[Literal[False], str, IO[bytes]]) -> Union[int, bytes]:
+def write_content(content: Union[str, bytes], output: Union[Literal[False], str, IO[bytes]]) -> Optional[Union[int, bytes]]:
 	'''
 	If output has `write` attribute, writes content to it and returns written bytes
 	If output is False, returns content
-	Otherwise writes content to file and returns written bytes, Or raises exception if output is not a valid path
+	Otherwise writes content to file and returns written bytes,
+	Or None if output is not a file path
 	'''
 
 	_, content = get_content(content)
@@ -1288,8 +1375,10 @@ def write_content(content: Union[str, bytes], output: Union[Literal[False], str,
 		return content
 
 	else:
-		with open(output, 'wb') as f:
-			return f.write(content)
+		try:
+			open(output, 'wb').write(content)
+		except:
+			return
 
 def make_tar(
 	source: str,
