@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.31.4'
+__version__ = '0.32.0'
 
 # ----------------CLASSES-----------------
 
@@ -103,7 +103,9 @@ class ProgressBar:
 		if iterator and not isinstance(iterator, Iterator):
 			if not hasattr(iterator, '__iter__'):
 				raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+
 			self.iterator = iterator.__iter__()
+
 		else:
 			self.iterator = iterator
 
@@ -404,7 +406,7 @@ class Config:
 		elif platform == 'linux' or 'darwin' in platform:
 			self.cli = self.unix_cli
 		else:
-			self.cli = self.custom_cli
+			self.cli = self.any_cli
 
 	def set_page(self, index: int):
 		self.index = index % self.page_amount
@@ -459,6 +461,7 @@ class Config:
 					editing = False
 					new_value = ''
 					cursor_pos = 0
+
 				elif key == b'\xe0':  # Special keys
 					key = msvcrt.getch()
 					if key == b'K':  # Left arrow
@@ -473,6 +476,7 @@ class Config:
 					if cursor_pos > 0:
 						new_value = new_value[:cursor_pos-1] + new_value[cursor_pos:]
 						cursor_pos -= 1
+
 				else:
 					try:
 						char = key.decode('utf-8')
@@ -567,24 +571,30 @@ class Config:
 
 	def unix_cli(self) -> dict[str, str]:
 
-		import sys, tty, termios, os
+		import sys, tty, termios, select
 
 		def getch():
 			fd = sys.stdin.fileno()
 			old_settings = termios.tcgetattr(fd)
+
 			try:
 				tty.setraw(sys.stdin.fileno())
-				ch = sys.stdin.read(1)
-				if ch == '\x1b':  # escape sequences
-					ch2 = sys.stdin.read(1)
-					if ch2 == '[':
-						ch3 = sys.stdin.read(1)
-						return f'\x1b[{ch3}'
-				return ch
+				rlist, _, _ = select.select([fd], [], [])
+
+				if rlist:
+						ch = sys.stdin.read(1)
+						if ch == '\x1b':  # escape sequences
+							ch2 = sys.stdin.read(1)
+							if ch2 == '[':
+								ch3 = sys.stdin.read(1)
+								return f'\x1b[{ch3}'
+						return ch
+
+				else:
+						return None
 			finally:
 				termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-		clear = lambda: os.system('clear')
 		self.index = 0
 		selected_option = 0
 		editing = False
@@ -592,7 +602,6 @@ class Config:
 		cursor_pos = 0
 
 		while True:
-			clear()
 			page = self.index + 1
 			options = self.options[self.index]
 			options_repr = []
@@ -618,7 +627,7 @@ class Config:
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
-			print(options_repr)
+			print('\033[2J\033[H' + options_repr, flush = True)
 
 			key = getch()
 
@@ -630,6 +639,7 @@ class Config:
 					editing = False
 					new_value = ''
 					cursor_pos = 0
+
 				elif key == '\x1b[D':  # Left arrow
 					cursor_pos = max(0, cursor_pos - 1)
 				elif key == '\x1b[C':  # Right arrow
@@ -638,9 +648,11 @@ class Config:
 					if cursor_pos > 0:
 						new_value = new_value[:cursor_pos-1] + new_value[cursor_pos:]
 						cursor_pos -= 1
+
 				elif len(key) == 1 and 32 <= ord(key) <= 126:  # Printable chars
 					new_value = new_value[:cursor_pos] + key + new_value[cursor_pos:]
 					cursor_pos += 1
+
 				continue
 
 			if key == '\x1b[A':  # Up arrow
@@ -663,6 +675,7 @@ class Config:
 				else:
 					self.add_page(-1)
 					selected_option = 0
+
 			elif key == '\r':  # Enter
 				option = options[selected_option]
 				if option.callback == Callbacks.toggle:
@@ -679,8 +692,10 @@ class Config:
 					editing = True
 					new_value = option.value
 					cursor_pos = len(new_value)
+
 			elif key in ('q', '\x1b'):  # q or Escape
 				break
+
 			elif key == 'p':  # Page select
 				print("\nPage: ", end='', flush=True)
 				try:
@@ -693,6 +708,7 @@ class Config:
 				num = int(key) - 1
 				if 0 <= num < len(options):
 					selected_option = num
+
 			elif key == 'w':  # Alternative up
 				selected_option = (selected_option - 1) % len(options)
 			elif key == 's':  # Alternative down
@@ -703,10 +719,10 @@ class Config:
 				self.add_page(1)
 
 		# Return all options
-		clear()
+		print('\033[2J\033[H', flush = True, end = '')
 		return {option.name: option.value for option in self.orig_options}
 
-	def custom_cli(self) -> dict[str, str]:
+	def any_cli(self) -> dict[str, str]:
 		self.index = 0
 
 		while True:
@@ -780,6 +796,8 @@ class aio:
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
+		*,
+		filter: Callable[[Any], bool] = None,
 		**kwargs,
 	) -> list[Any]:
 
@@ -833,17 +851,25 @@ class aio:
 		try:
 			response = await ses.request(method, url, **kwargs)
 
+			if filter:
+				is_ok = filter(response)
+				if inspect.iscoroutine(is_ok):
+					is_ok = await is_ok
+
+				if not is_ok:
+					return
+
 			for item in toreturn:
 
 				try:
 					result = getattr(response, item)
-					
-					if inspect.isfunction(result):
-						result = result()
-					elif inspect.iscoroutinefunction(result):
+
+					if inspect.iscoroutinefunction(result):
 						result = await result()
 					elif inspect.iscoroutine(result):
 						result = await result
+					elif callable(result):
+						result = result()
 
 				except:
 					if raise_exceptions:
@@ -856,7 +882,7 @@ class aio:
 		except asyncio.TimeoutError:
 			return_items.insert(0, 0)
 
-		except BaseException:
+		except:
 			if raise_exceptions:
 				raise
 
@@ -895,41 +921,42 @@ class aio:
 		**kwargs,
 	) -> list[Any]:
 		return await aio.request('POST', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
-	
+
 	@staticmethod
 	async def fuckoff(
 		method: RequestMethods,
 		url: str,
 		session,
 		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]],
-		filter: Callable[[list[Any]], bool] = lambda response: response.status_code == 200,
+		filter: Callable[[Any], bool] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
 		interval: None | float = 5.0,
 		retries: int = -1,
 		**request_args
-	) -> list[Any]:
-		
-		import asyncio
+	) -> list[Any | None]:
 
-		while retries > 0:
+		if interval:
+			import asyncio
+
+		while retries != 0:
 			items = await aio.request(
 				method,
 				url,
 				toreturn = toreturn,
 				session = session,
 				raise_exceptions = True,
+				filter = filter,
 				**request_args
 			)
-			is_ok = filter(items)
 
-			if is_ok:
+			if items:
 				return items
 
-			elif retries > 0:
+			elif interval and retries > 0:
 				await asyncio.sleep(interval)
-			
+
 			retries -= 1
-		
-		return [None for i in range(len(items))]
+
+		return [None for i in range(len(toreturn))]
 
 	@staticmethod
 	async def open(
@@ -973,11 +1000,10 @@ class aio:
 	@staticmethod
 	async def sem_task(
 		semaphore,
-		func: Callable[..., Any],
-		*args, **kwargs
+		func: Coroutine,
 	) -> Any:
 		async with semaphore:
-			return await func(*args, **kwargs)
+			return await func
 
 class num:
 
@@ -1049,7 +1075,7 @@ class num:
 
 		Returns:
 			Unshortened float
-		
+
 		Raises:
 			ValueError: if provided value is not a number
 
@@ -1291,15 +1317,15 @@ def setup_logger(name: str, dir: str = 'logs/'):
 
 	if not os.path.exists(dir):
 		os.makedirs(dir)
-	
+
 	open(f'{dir}/{name}.log', 'w').write('')
-	
+
 	logger = logging.getLogger(name)
 	logger.setLevel(logging.DEBUG)
 
 	log_queue = Queue()
 	queue_handler = logging.handlers.QueueHandler(log_queue)
-	file_handler = logging.FileHandler(f'logs/{name}.log')
+	file_handler = logging.FileHandler(f'logs/{name}.log', encoding = 'utf-8')
 
 	console_handler = logging.StreamHandler()
 	console_handler.setLevel(logging.INFO)
@@ -1447,19 +1473,18 @@ def compress(
 		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC}, {'compression_level': 'quality'}),
 	}
 
-	a_compress, additional_args, slug_map = algorithm_map[algorithm]
+	get_compress_func, additional_args, slug_map = algorithm_map[algorithm]
 
 	if check_algorithm_support:
-		if not algorithm: return
 
 		try:
-			a_compress()
+			compress()
 			return True
 
 		except:# ImportError
 			return False
 
-	a_compress = a_compress()
+	compress = get_compress_func()
 
 	if callable(additional_args):
 		additional_args = additional_args()
@@ -1483,14 +1508,14 @@ def compress(
 			output = False
 
 	if isinstance(source, bytes):
-		compressed = a_compress(
+		compressed = compress(
 			source, **additional_args
 		)
 
 	else:
 		if not tar_if_file and os.path.isfile(source):
 			with open(source, 'rb') as f:
-				compressed = a_compress(f.read(), **additional_args)
+				compressed = compress(f.read(), **additional_args)
 
 		else:
 			tar_path = '' if tar_in_memory else output + '.tar'
@@ -1498,7 +1523,7 @@ def compress(
 				os.remove(output)
 
 			stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
-			compressed = a_compress(stream if tar_in_memory else tar_path, **additional_args)
+			compressed = compress(stream if tar_in_memory else tar_path, **additional_args)
 
 			if not tar_in_memory:
 				os.remove(tar_path)
@@ -1549,7 +1574,7 @@ def decompress(
 	type, content = get_content(source)
 
 	if not algorithm:
-		for algo, (a_decompress, start_bytes) in algorithm_map.items():
+		for algo, (decompress, start_bytes) in algorithm_map.items():
 			if callable(start_bytes):
 				algorithm = algo if start_bytes(content) else None
 
@@ -1560,22 +1585,22 @@ def decompress(
 		if not algorithm:
 			raise ValueError(f"Couldn't detect algorithm for decompression, start bytes: {content[:10]}")
 
-	a_decompress = algorithm_map[algorithm][0]()
-	decompressed = a_decompress(content, **kwargs)
+	decompress = algorithm_map[algorithm][0]()
+	result = decompress(content, **kwargs)
 
 	if output is None:
 		output = source.rsplit('.', 1)[0] if isinstance(source, str) else False
 
 	if output is False:
-		return decompressed
+		return result
 
 	elif hasattr(output, 'write'):
-		return output.write(decompressed)
+		return output.write(result)
 
 	# Assuming output is a path
 	import tarfile, io
 
-	stream = io.BytesIO(decompressed)
+	stream = io.BytesIO(result)
 	is_tar = tarfile.is_tarfile(stream)
 
 	if is_tar:
@@ -1589,6 +1614,6 @@ def decompress(
 
 	else:
 		with open(output, 'wb') as f:
-			f.write(decompressed)
+			f.write(result)
 
 	return output
