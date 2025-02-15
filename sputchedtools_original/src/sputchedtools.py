@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.1'
+__version__ = '0.32.2'
 
 # ----------------CLASSES-----------------
 
@@ -96,8 +96,8 @@ class ProgressBar:
 		self,
 		iterator: Optional[Union[Iterator[Any], Iterable[Any]]] = None,
 		text: str = 'Processing...',
+		final_text: str = "Done\n",
 		task_amount: Optional[int] = None,
-		final_text: str = "Done\n"
 	):
 
 		if iterator and not isinstance(iterator, Iterator):
@@ -110,11 +110,11 @@ class ProgressBar:
 			self.iterator = iterator
 
 		if task_amount is None:
-			if self.iterator and not hasattr(self.iterator, '__len__'):
+			if iterator and not hasattr(iterator, '__len__'):
 				raise AttributeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
 
-			elif self.iterator:
-				self.task_amount = self.iterator.__len__()
+			elif iterator:
+				self.task_amount = iterator.__len__()
 
 		else:
 			self.task_amount = task_amount
