@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.0'
+__version__ = '0.32.1'
 
 # ----------------CLASSES-----------------
 
@@ -110,11 +110,11 @@ class ProgressBar:
 			self.iterator = iterator
 
 		if task_amount is None:
-			if iterator and not hasattr(iterator, '__len__'):
+			if self.iterator and not hasattr(self.iterator, '__len__'):
 				raise AttributeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
 
-			elif iterator:
-				self.task_amount = iterator.__len__()
+			elif self.iterator:
+				self.task_amount = self.iterator.__len__()
 
 		else:
 			self.task_amount = task_amount
@@ -183,7 +183,7 @@ class ProgressBar:
 	def print_progress(self):
 		self.flush(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
 
-	async def gather(self, tasks: Optional[Iterable[Coroutine]]) -> list[Any]:
+	async def gather(self, tasks: Optional[Iterable[Coroutine]] = None) -> list[Any]:
 		self.update(0)
 		tasks = tasks or self.iterator
 		assert tasks, "You didn't provide any tasks"
@@ -197,7 +197,7 @@ class ProgressBar:
 		self.finish()
 		return results
 
-	async def as_completed(self, tasks: Optional[Iterable[Coroutine]]):
+	async def as_completed(self, tasks: Optional[Iterable[Coroutine]] = None):
 		self.update(0)
 		tasks = tasks or self.iterator
 		assert tasks, "You didn't provide any tasks"
@@ -1478,7 +1478,7 @@ def compress(
 	if check_algorithm_support:
 
 		try:
-			compress()
+			get_compress_func()
 			return True
 
 		except:# ImportError
