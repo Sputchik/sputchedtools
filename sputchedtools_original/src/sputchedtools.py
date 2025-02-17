@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.2'
+__version__ = '0.32.3'
 
 # ----------------CLASSES-----------------
 
@@ -26,7 +26,6 @@ class Timer:
 		%s  - seconds
 		%ms - milliseconds
 		%us - microseconds
-		%n  - lap name (if using laps)
 
 	"""
 
@@ -94,7 +93,7 @@ class NewLiner:
 class ProgressBar:
 	def __init__(
 		self,
-		iterator: Optional[Union[Iterator[Any], Iterable[Any]]] = None,
+		iterator: Optional[Union[Iterator, Iterable]] = None,
 		text: str = 'Processing...',
 		final_text: str = "Done\n",
 		task_amount: Optional[int] = None,
@@ -142,7 +141,7 @@ class ProgressBar:
 		self.update(0)
 		return self
 
-	def __next__(self) -> Any:
+	def __next__(self):
 		try:
 			item = next(self.iterator)
 			self.update()
@@ -158,11 +157,11 @@ class ProgressBar:
 		self.update(0)
 		return self
 
-	async def __anext__(self) -> Any:
+	async def __anext__(self):
 		try:
-			task = await self.iterator.__anext__()
+			result = await self.iterator.__anext__()
 			self.update()
-			return task
+			return result
 
 		except StopAsyncIteration:
 			await self.finish()
@@ -176,8 +175,8 @@ class ProgressBar:
 		self.update(0)
 		return self
 
-	def update(self, increment: int = 1):
-		self.completed_tasks += increment
+	def update(self, by: int = 1):
+		self.completed_tasks += by
 		self.print_progress()
 
 	def print_progress(self):
@@ -255,7 +254,7 @@ class Anim:
 		self.done = False
 
 	def get_line(self) -> str:
-		return f'\r{self.prepend_text}{self.char}{self.append_text}'.encode('utf-8').decode('utf-8')
+		return f'\r{self.prepend_text}{self.char}{self.append_text}'
 
 	@classmethod
 	def get_max_char_len(cls, chars: Iterable[Any]) -> int:
@@ -275,7 +274,7 @@ class Anim:
 		)
 
 	@classmethod
-	def adapt_chars_spaces(cls, chars: Iterable[Any]) -> Iterable[Any]:
+	def adapt_chars_spaces(cls, chars: Iterable) -> Iterable:
 		mcl = cls.get_max_char_len(chars)
 		if mcl <= 1:
 			return chars
@@ -293,7 +292,7 @@ class Anim:
 
 		return new_chars
 
-	def set_chars(self, new_chars: Iterable[Any]):
+	def set_chars(self, new_chars: Iterable):
 		self.chars = self.adapt_chars_spaces(new_chars)
 
 	def set_text(self, new_text: str, prepended: bool = True):
@@ -367,7 +366,7 @@ class Option:
 		callback: Callbacks = Callbacks.direct,
 		values: Optional[list[str]] = None
 	):
-		'''
+		"""
 		name: str - Option name
 		value: str - Option default value
 		callback: Callbacks - Option callback type
@@ -376,7 +375,7 @@ class Option:
 			callable: 3 - Custom callback function. Receives option name or index (configurable in `Config`), returned value will be set as option value
 
 		values: list[str] - Option values
-		'''
+		"""
 
 		self.name = name
 		self.value = value
@@ -783,8 +782,8 @@ class aio:
 		- aio.get() - 'GET' wrapper for aio.request
 		- aio.post() - 'POST' wrapper for aio.request
 		- aio.request() - ikyk
-		- aio.open() - aiofiles.open() method
-		- aio.sem_task() - uses received semaphore to return function execution result
+		- aio.open() - aiofiles.open() wrapper
+		- aio.sem_task() - (asyncio.Semaphore, Coroutine) wrapper
 	"""
 
 	@staticmethod
@@ -813,14 +812,19 @@ class aio:
 
 			- raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
 
+			- filter: Callable - Filters received response right after getting one
+
 			- any other session.request() argument
 
 		Returns:
-			- Valid response: [data]
+			- Valid response: list[*toreturn]
 
 			- Request Timeout: [0, *toreturn]
 			- Cancelled Error: [None, *toreturn]
-			- Exception: Raise if raise_exceptions else return_items + None * ( len(toreturn) - len(existing_items) )
+
+		Raises:
+			Any Exception: If raise_exceptions else return_items + None * ( len(toreturn) - len(existing_items) )
+
 		"""
 
 		import asyncio, inspect
@@ -1186,9 +1190,9 @@ class MC_VersionList:
 		# self.map = {version: index for version, index in zip(versions, indices)}
 
 class MC_Versions:
-	'''
+	"""
 	Initialize via `await MC_Versions.init()`
-	'''
+	"""
 
 	def __init__(self):
 		from re import findall
@@ -1306,7 +1310,7 @@ def enhance_loop() -> bool:
 
 def setup_logger(name: str, dir: str = 'logs/'):
 	"""
-	Sets up minimalistic logger with file (all levels) and console (debug<) handlers
+	Sets up minimalistic logger with file (all levels) and console (>debug) handlers
 	Using queue.Queue to exclude logging from main thread
 	"""
 
@@ -1385,12 +1389,12 @@ def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Op
 		return None, None
 
 def write_content(content: Union[str, bytes], output: Union[Literal[False], str, IO[bytes]]) -> Optional[Union[int, bytes]]:
-	'''
+	"""
 	If output has `write` attribute, writes content to it and returns written bytes
 	If output is False, returns content
 	Otherwise writes content to file and returns written bytes,
 	Or None if output is not a file path
-	'''
+	"""
 
 	_, content = get_content(content)
 
@@ -1531,9 +1535,9 @@ def compress(
 	return write_content(compressed, output)
 
 def is_brotli(data: bytes) -> bool:
-	'''
+	"""
 	Don't use this
-	'''
+	"""
 
 	if not isinstance(data, bytes):
 		return False
