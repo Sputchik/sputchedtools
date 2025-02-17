@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.3'
+__version__ = '0.32.4'
 
 # ----------------CLASSES-----------------
 
@@ -1406,7 +1406,8 @@ def write_content(content: Union[str, bytes], output: Union[Literal[False], str,
 
 	else:
 		try:
-			open(output, 'wb').write(content)
+			return open(output, 'wb').write(content)
+
 		except:
 			return
 
