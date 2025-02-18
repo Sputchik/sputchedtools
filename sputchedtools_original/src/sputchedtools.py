@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.4'
+__version__ = '0.32.5'
 
 # ----------------CLASSES-----------------
 
@@ -31,17 +31,16 @@ class Timer:
 
 	def __init__(
 		self,
-		echo_fmt: Union[str, Literal[False]] = "Taken time: %s",
-		append_fmt: bool = True
+		fmt: Union[str, Literal[False]] = "Taken time: %s",
+		add_unit: bool = True
 	):
 
 		from time import perf_counter
 
 		self.time = perf_counter
-		self.echo_fmt = echo_fmt
-		self.append_fmt = append_fmt
+		self.fmt = fmt
+		self.add_unit = add_unit
 		self.time_fmts = ['s', 'ms', 'us']
-		self.mps = [1] + [1000**i for i in range(1, len(self.time_fmts))]
 		self.laps: list[TimerLap] = []
 
 	def __enter__(self) -> 'Timer':
@@ -57,10 +56,10 @@ class Timer:
 		return now - self._last_lap
 
 	def format_output(self, seconds: float) -> str:
-		fmt = self.echo_fmt
+		fmt = self.fmt
 
-		for mp, unit in zip(self.mps, self.time_fmts):
-			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}" if self.append_fmt else '', 1)
+		for mp, unit in zip([1, 1000, 1000000], self.time_fmts):
+			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}" if self.add_unit else '', 1)
 
 		return fmt
 
@@ -68,14 +67,14 @@ class Timer:
 		end_time = self.time()
 		self.diff = end_time - self._start_time
 
-		if self.echo_fmt:
+		if self.fmt:
 			print(self.format_output(self.diff))
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
 
 	async def __aexit__(self, *exc):
-		return self.__exit__(*exc)
+		self.__exit__(*exc)
 
 class NewLiner:
 
@@ -222,33 +221,30 @@ class Anim:
 	def __init__(
 		self,
 		prepend_text: str = '', append_text: str = '',
-		just_clear_char: bool = True,
-		clear_on_exit: bool = False,
+		clear_on_exit: Union[bool, str, None] = False,
 		delay: float = 0.03,
 		manual_update: bool = False,
-		chars: Optional[Iterable[Any]] = None
+		chars: Optional[Iterable] = None
 	):
 		from threading import Thread
 		from shutil import get_terminal_size
 		from time import sleep
 
 		self.Thread = Thread
-		self.get_terminal_size = get_terminal_size
 		self.sleep = sleep
 
 		self.chars = chars or  ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
 		self.prepend_text = prepend_text
+		self.append_text = append_text
 
 		if len(self.prepend_text) != 0 and not self.prepend_text.endswith(' '):
 			self.prepend_text += ' '
 
-		self.append_text = append_text
-		self.just_clear_char = just_clear_char
 		self.clear_on_exit = clear_on_exit
 		self.delay = delay
 		self.manual_update = manual_update
 
-		self.terminal_size = self.get_terminal_size().columns
+		self.terminal_size = get_terminal_size().columns
 		self.chars = self.adapt_chars_spaces(self.chars)
 		self.char = self.chars[0]
 		self.done = False
@@ -331,10 +327,13 @@ class Anim:
 				self.update()
 				self.sleep(self.delay)
 
-		if self.clear_on_exit:
+		if self.clear_on_exit is True:
 			self.safe_line_echo('\r' + ' ' * len(self.get_line()) + '\r')
 
-		elif self.just_clear_char:
+		elif isinstance(self.clear_on_exit, str):
+			self.safe_line_echo('\r' + self.prepend_text + self.char + self.append_text + self.clear_on_exit)
+
+		elif self.clear_on_exit is False:
 			self.safe_line_echo('\r' + self.prepend_text + ' ' * len(self.char) + self.append_text)
 
 	def __enter__(self) -> 'Anim':
@@ -791,7 +790,7 @@ class aio:
 		method: RequestMethods,
 		url: str,
 		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
-		session: Optional[Any] = None,
+		session = None,
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
@@ -906,7 +905,7 @@ class aio:
 	async def get(
 		url: str,
 		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
-		session: Optional[Any] = None,
+		session = None,
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
@@ -918,7 +917,7 @@ class aio:
 	async def post(
 		url: str,
 		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
-		session: Optional[Any] = None,
+		session = None,
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
@@ -967,7 +966,7 @@ class aio:
 		file: str,
 		action: str = 'read',
 		mode: str = 'r',
-		content: Optional[Any] = None,
+		content = None,
 		**kwargs
 	) -> Union[int, str, bytes]:
 
