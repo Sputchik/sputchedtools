@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.6'
+__version__ = '0.32.7'
 
 # ----------------CLASSES-----------------
 
@@ -1009,39 +1009,39 @@ class aio:
 			return await func
 
 class pyromisc:
-	
+
 	@staticmethod
 	def get_md(message) -> Optional[str]:
 		return (message.caption or message.text, 'markdown', None)
-	
+
 	@staticmethod
 	def get_user_name(user) -> Union[str, int]:
 		if user.username:
 			slug = f'@{user.username}'
-		
+
 		elif user.first_name:
 			slug = user.first_name
 			if user.last_name:
 				slug += f' {user.last_name}'
-			
+
 		else:
 			slug = user.id
 
 		return slug
-	
+
 	@staticmethod
 	def get_chat_name(chat) -> Union[str, int]:
 		if chat.username:
 			slug = f'@{chat.username}'
-		
+
 		elif chat.title:
 			slug = chat.title
-		
+
 		elif chat.first_name:
 			slug = chat.first_name
 			if chat.last_name:
 				slug += f' {chat.last_name}'
-		
+
 		else:
 			slug = chat.id
 
@@ -1660,3 +1660,194 @@ def decompress(
 			f.write(result)
 
 	return output
+
+def compress_images(images: dict[str, list[int]], page_amount: int = None) -> bytes:
+	import struct
+
+	# ----------------------METHODS----------------------
+	def encode_numbers(numbers):
+		data = bytearray()
+		numbers_len = len(numbers)
+		i = 0
+
+		while i < numbers_len:
+			start = numbers[i]
+			length = 1
+
+			if i + 1 < numbers_len:
+				step = numbers[i + 1] - start
+
+				# Check for a sequence with constant step
+				while i + length < numbers_len and numbers[i + length] == start + step * length:
+					length += 1
+
+				if length >= 4:  # Apply stepped range encoding
+					data.extend(FUNCTION)
+
+					if step == 1:
+						data.extend(RANGE_FUNCTION_ID)  # Use original function for step=1
+					else:
+						data.extend(STEP_RANGE_FUNCTION_ID)
+						data.extend(struct.pack(struct_format, step))
+
+					data.extend(struct.pack(struct_format, start))
+					data.extend(struct.pack(struct_format, length))
+					i += length
+					continue
+
+			# Regular number if no pattern found
+			data.extend(struct.pack(struct_format, start))
+			i += 1
+
+		return bytes(data)
+
+	# --------------------CONSTANTS--------------------
+	# Custom Bytes
+	SEPARATOR = EXT_SEPARATOR = b'\x00'
+	FUNCTION = b'\xFF'
+	RANGE_FUNCTION_ID = b'\x01'  # Consecutive range (step=1)
+	STEP_RANGE_FUNCTION_ID = b'\x02'  # Stepped range
+
+	# Default extension, page amount from received data
+	default_ext = max(images, key = lambda ext: len(images[ext]))
+	page_amount = page_amount or max(max(sublist) for sublist in images.values())
+	assert 0 < page_amount < 65535, "Invalid page amount. (1-65534)"
+
+	# Choose encoding type
+	if page_amount <= 254:
+		encoding_byte = b'\x00' # Uint8
+		struct_format = '>B'  # Unsigned 8-bit integer
+
+	else:
+		encoding_byte = b'\x01'  # Uint16
+		struct_format = '>H'  # Unsigned 16-bit integer
+		EXT_SEPARATOR *= 2; FUNCTION *= 2
+
+	# ------------------COMPRESSION------------------
+	# Stream base data
+	data = bytearray()
+	data.extend(default_ext.encode('utf-8'))  # Default extension
+	data.extend(SEPARATOR + encoding_byte)  # Encoding flag
+	data.extend(struct.pack(struct_format, page_amount))  # Page amount
+
+	# Return if only one extension
+	if len(images) == 1:
+		return bytes(data)
+
+	# Remove default extension
+	del images[default_ext]
+
+	# Compress all extensions
+	for ext, num_list in images.items():
+		data.extend(EXT_SEPARATOR)
+		data.extend(ext.encode('utf-8'))  # Extension name
+		data.extend(SEPARATOR)
+		data.extend(encode_numbers(num_list))  # Encoded numbers
+
+	return bytes(data)
+
+def decompress_images(data: bytes) -> dict:
+	import struct
+
+	# ----------------------METHODS----------------------
+	# Helper function to read a null-terminated string
+	def read_string() -> str:
+		nonlocal index
+		end = data.find(SEPARATOR, index)
+
+		if end == -1:
+			raise ValueError("Missing separator after string")
+
+		string = data[index:end].decode('utf-8')
+		index = end + 1  # Move past the separator
+		return string
+
+	# --------------------CONSTANTS--------------------
+	# Custom Bytes
+	SEPARATOR_SIZE = FUNCTION_SIZE = 1
+	SEPARATOR = EXT_SEPARATOR = b'\x00'
+	FUNCTION_BYTE = b'\xFF'
+	RANGE_FUNCTION_ID = b'\x01'
+	STEP_RANGE_FUNCTION_ID = b'\x02'
+
+	# Stream constants
+	index = 0
+	length = len(data)
+
+	# Get default extension
+	default_ext = read_string()
+
+	# Get encoding flag
+	encoding_flag = data[index]
+	index += 1  # Move past encoding flag
+
+	# Determine integer size
+	if encoding_flag == 0x00:  # uint8
+		struct_format = '>B'
+		int_size = 1
+
+	elif encoding_flag == 0x01:  # uint16
+		struct_format = '>H'
+		int_size = SEPARATOR_SIZE = FUNCTION_SIZE = 2
+		EXT_SEPARATOR *= 2; FUNCTION_BYTE *= 2
+
+	else:
+		raise ValueError("Invalid encoding flag.")
+
+	# Get page amount
+	page_amount = struct.unpack(struct_format, data[index:index + int_size])[0]
+	index += int_size
+
+	# Single extension case
+	if index == length:
+		return {default_ext: list(range(1, page_amount + 1))}
+
+	index += int_size # Move past extension separator
+
+	# ----------------DECOMPRESSION----------------
+	added_pages = set()
+	images = dict()
+
+	while index < length:
+		ext = read_string()
+		numbers = []
+
+		while index < length and data[index : index + SEPARATOR_SIZE] != EXT_SEPARATOR:  # Until next separator
+
+			if data[index : index + FUNCTION_SIZE] == FUNCTION_BYTE:
+				index += FUNCTION_SIZE
+				function_id = data[index]
+				index += 1  # Move past function ID
+
+				if function_id == RANGE_FUNCTION_ID[0]:  # Integer range function
+					start = struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					range_len = struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					numbers.extend(range(start, start + range_len))
+
+				elif function_id == STEP_RANGE_FUNCTION_ID[0]:  # Stepped range
+					step = struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					start = struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					range_len = struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					numbers.extend(range(start, start + step * range_len, step))
+
+				else:
+					raise ValueError(f"Unknown function ID: {function_id}")
+
+			else:  # Regular number
+				num = struct.unpack(struct_format, data[index:index + int_size])[0]
+				index += int_size
+				numbers.append(num)
+
+		images[ext] = numbers
+		added_pages.update(numbers)
+		index += SEPARATOR_SIZE  # Move past separator
+
+	# Fill default extension pages
+	images[default_ext] = [i for i in range(1, page_amount + 1) if i not in added_pages]
+
+	return images
