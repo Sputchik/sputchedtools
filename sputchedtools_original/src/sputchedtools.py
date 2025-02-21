@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.5'
+__version__ = '0.32.6'
 
 # ----------------CLASSES-----------------
 
@@ -1008,6 +1008,45 @@ class aio:
 		async with semaphore:
 			return await func
 
+class pyromisc:
+	
+	@staticmethod
+	def get_md(message) -> Optional[str]:
+		return (message.caption or message.text, 'markdown', None)
+	
+	@staticmethod
+	def get_user_name(user) -> Union[str, int]:
+		if user.username:
+			slug = f'@{user.username}'
+		
+		elif user.first_name:
+			slug = user.first_name
+			if user.last_name:
+				slug += f' {user.last_name}'
+			
+		else:
+			slug = user.id
+
+		return slug
+	
+	@staticmethod
+	def get_chat_name(chat) -> Union[str, int]:
+		if chat.username:
+			slug = f'@{chat.username}'
+		
+		elif chat.title:
+			slug = chat.title
+		
+		elif chat.first_name:
+			slug = chat.first_name
+			if chat.last_name:
+				slug += f' {chat.last_name}'
+		
+		else:
+			slug = chat.id
+
+		return slug
+
 class num:
 
 	"""
@@ -1357,7 +1396,7 @@ def setup_logger(name: str, dir: str = 'logs/'):
 
 def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Optional[bytes]]:
 	"""
-	Returns source byte content
+	Returns source byte content as tuple - (type, content)
 	Source can be either a file_path, readable buffer or just bytes
 
 	First tuple object is source type:
