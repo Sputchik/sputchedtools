@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.7'
+__version__ = '0.32.9'
 
 # ----------------CLASSES-----------------
 
@@ -860,7 +860,7 @@ class aio:
 					is_ok = await is_ok
 
 				if not is_ok:
-					return
+					return is_ok
 
 			for item in toreturn:
 
@@ -931,11 +931,11 @@ class aio:
 		url: str,
 		session,
 		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]],
-		filter: Callable[[Any], bool] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
+		filter: Callable[[Any], Union[bool, None]] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
 		interval: None | float = 5.0,
 		retries: int = -1,
 		**request_args
-	) -> list[Any | None]:
+	) -> list[Any | None] | None:
 
 		if interval:
 			import asyncio
@@ -953,6 +953,9 @@ class aio:
 
 			if items:
 				return items
+			
+			elif items is None:
+				return
 
 			elif interval and retries > 0:
 				await asyncio.sleep(interval)
