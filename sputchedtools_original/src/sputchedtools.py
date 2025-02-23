@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.32.9'
+__version__ = '0.33.0'
 
 # ----------------CLASSES-----------------
 
@@ -953,7 +953,7 @@ class aio:
 
 			if items:
 				return items
-			
+
 			elif items is None:
 				return
 
@@ -1665,77 +1665,117 @@ def decompress(
 	return output
 
 def compress_images(images: dict[str, list[int]], page_amount: int = None) -> bytes:
+	"""
+	ONLY Use if:
+
+	- Input page lists are sorted in ascending order.
+	- EVERY page (1 to `max_page`) is present in EXACTLY ONE extension.
+		Missing pages will be assigned to the default extension (auto-selected as the one
+		with the longest page list). Ties in page list lengths may cause incorrect defaults.
+
+	- Extensions (keys) do NOT contain null bytes (`\x00`).
+	- Page numbers do NOT exceed `page_amount` (if given).
+
+	Failure to meet these conditions will result in CORRUPTED output
+
+	"""
+
 	import struct
 
 	# ----------------------METHODS----------------------
-	def encode_numbers(numbers):
+	def encode_numbers(numbers: list[int]) -> bytes:
 		data = bytearray()
 		numbers_len = len(numbers)
-		i = 0
+
+		if numbers_len == 1:
+			return struct.pack(STRUCT, numbers[0])
+
+		max_step = max(numbers[i + 1] - numbers[i] for i in range(numbers_len - 1))
+
+		# Set encoding based on max step
+		set_encoding(max_step < 0xFF)
+
+		# Add starting page
+		prev_page = numbers[0]
+		data.extend(struct.pack(STRUCT, prev_page))
+
+		# Add encoding byte
+		data.extend(encoding)
+
+		i = 1
 
 		while i < numbers_len:
-			start = numbers[i]
-			length = 1
+			page = numbers[i]
+			from_prev_step = page - prev_page
+			# print(prev_page, page, from_prev_step, max_step)
 
 			if i + 1 < numbers_len:
-				step = numbers[i + 1] - start
+				range_step = numbers[i + 1] - page
+				length = 1
 
 				# Check for a sequence with constant step
-				while i + length < numbers_len and numbers[i + length] == start + step * length:
+				while i + length < numbers_len and numbers[i + length] == page + range_step * length:
 					length += 1
 
 				if length >= 4:  # Apply stepped range encoding
 					data.extend(FUNCTION)
 
-					if step == 1:
+					if range_step == 1:
 						data.extend(RANGE_FUNCTION)  # Use original function for step=1
 					else:
 						data.extend(STEP_RANGE_FUNCTION)
-						data.extend(struct.pack(struct_format, step))
+						data.extend(struct.pack(STRUCT, range_step))
 
-					data.extend(struct.pack(struct_format, start))
-					data.extend(struct.pack(struct_format, length))
+					# Step from previous page
+					data.extend(struct.pack(struct_format, from_prev_step))
+					# Range length
+					data.extend(struct.pack(STRUCT, length))
+
 					i += length
+					prev_page = numbers[i - 1]
 					continue
 
 			# Regular number if no pattern found
-			data.extend(struct.pack(struct_format, start))
+			data.extend(struct.pack(struct_format, from_prev_step))
+			prev_page = page
 			i += 1
 
 		return bytes(data)
 
-	def set_encoding(Uint8 = True):
-		nonlocal EXT_SEPARATOR, FUNCTION, struct_format, encoding
+	def set_encoding(Uint8 = False):
+		nonlocal FUNCTION, struct_format, encoding, separator
 
 		if Uint8:
-			EXT_SEPARATOR = encoding = b'\x00'
+			separator = b'\x00'
+			encoding = b'\x01'
 			FUNCTION = b'\xFF'
 			struct_format = '>B'
 
 		else:
-			EXT_SEPARATOR = b'\x00\x00'
+			separator = b'\x00\x00'
 			FUNCTION = b'\xFF\xFF'
 			struct_format = '>H'
-			encoding = b'\x01'
+			encoding = b'\x02'
 
 	# --------------------CONSTANTS--------------------
 	# Custom Bytes
-	SEPARATOR = EXT_SEPARATOR = ENCODING = encoding = b'\x00'
+	SEPARATOR = EXT_SEPARATOR = separator = b'\x00'
 	FUNCTION = b'\xFF'
-	RANGE_FUNCTION = b'\x01'  # Consecutive range (step=1)
+	RANGE_FUNCTION = ENCODING = encoding = b'\x01'  # Consecutive range (step=1)
 	STEP_RANGE_FUNCTION = b'\x02'  # Stepped range
 	STRUCT = struct_format = '>B'
 
 	# Default extension, page amount from received data
 	default_ext = max(images, key = lambda ext: len(images[ext]))
 	page_amount = page_amount or max(max(sublist) for sublist in images.values())
-	assert 0 < page_amount < 65535, "Invalid page amount. (1-65534)"
+	assert  page_amount < 65535, "Invalid page amount, Allowed from 1 to 65534"
 
 	# Choose encoding type
-	if page_amount >= 254:
-		set_encoding(False)
+	if page_amount >= 0xFF:
+		set_encoding()
 		ENCODING = encoding
 		STRUCT = struct_format
+		EXT_SEPARATOR = separator
 
 	# ------------------COMPRESSION------------------
 	# Stream base data
@@ -1748,11 +1788,12 @@ def compress_images(images: dict[str, list[int]], page_amount: int = None) -> by
 	if len(images) == 1:
 		return bytes(data)
 
-	# Compress all extensions
 	# STRUCTURE:
 	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
-	# (default_extension) & (ENCODING) (page amount) | [ && (ext1) & (ext1 data) ]
+	# (default extension) & (encoding type) & (page amount) |
+	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
 
+	# Compress all extensions
 	for ext, num_list in images.items():
 		if ext == default_ext:
 			continue
@@ -1770,114 +1811,134 @@ def decompress_images(data: bytes) -> dict:
 	# ----------------------METHODS----------------------
 	# Helper function to read a null-terminated string
 	def read_string() -> str:
-		nonlocal INDEX
-		end = data.find(SEPARATOR, INDEX)
+		nonlocal index
+		end = data.find(SEPARATOR, index)
 
 		if end == -1:
 			raise ValueError("Missing separator after string")
 
-		string = data[INDEX:end].decode('utf-8')
-		INDEX = end + 1  # Move past the separator
+		string = data[index:end].decode('utf-8')
+		index = end + 1  # Move past the separator
 		return string
-	
+
 	def set_encoding(Uint8 = False):
-		nonlocal EXT_SEPARATOR, FUNCTION, struct_format, int_size
+		nonlocal FUNCTION, struct_format, int_size, separator
 
 		if Uint8:
-			EXT_SEPARATOR = encoding = b'\x00'
+			separator = b'\x00'
 			FUNCTION = b'\xFF'
 			struct_format = '>B'
 			int_size = 1
 
 		else:
-			EXT_SEPARATOR = b'\x00\x00'
+			separator = b'\x00\x00'
 			FUNCTION = b'\xFF\xFF'
-			int_size = 2
 			struct_format = '>H'
+			int_size = 2
 
 	# --------------------CONSTANTS--------------------
 	# Custom Bytes
-	SEPARATOR = EXT_SEPARATOR = b'\x00'
+	SEPARATOR = EXT_SEPARATOR = separator = b'\x00'
 	INT_SIZE = int_size = 1
 	FUNCTION = b'\xFF'
 	RANGE_FUNCTION = b'\x01'
 	STEP_RANGE_FUNCTION = b'\x02'
 	STRUCT = struct_format = '>B'
-	
+
 	# Stream constants
-	INDEX = 0
+	index = 0
 	LENGTH = len(data)
 
 	# STRUCTURE:
 	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
-	# (default_extension) & (encoding type) (page amount) | [ && (ext1) & (ext1 data) ]
+	# (default extension) & (encoding type) & (page amount) |
+	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
 
 	# Get default extension
 	default_ext = read_string()
 
 	# Get encoding flag
-	ENCODING = data[INDEX]
-	INDEX += 1  # Move past encoding flag
+	ENCODING = data[index]
+	index += 1  # Move past encoding flag
 
-	if ENCODING == 0x01:
+	if ENCODING == 0x02:
 		set_encoding()
 		STRUCT = struct_format
 		INT_SIZE = int_size
+		EXT_SEPARATOR = separator
 
 	# Get page amount
-	page_amount = struct.unpack(STRUCT, data[INDEX:INDEX + INT_SIZE])[0]
-	INDEX += INT_SIZE
+	page_amount = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
+	index += INT_SIZE
 
 	# Single extension case
-	if INDEX == LENGTH:
+	if index == LENGTH:
 		return {default_ext: list(range(1, page_amount + 1))}
 
-	INDEX += INT_SIZE # Move past extension separator
+	index += INT_SIZE # Move past extension separator
 
 	# ----------------DECOMPRESSION----------------
 	added_pages = set()
 	images = dict()
 
-	while INDEX < LENGTH:
+	while index < LENGTH:
+		# Get extension name
 		ext = read_string()
-		numbers = []
 
-		while INDEX < LENGTH and data[INDEX : INDEX + INT_SIZE] != EXT_SEPARATOR:  # Until next separator
+		# Get starting page
+		prev_page = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
+		index += INT_SIZE # Move past start page
 
-			if data[INDEX : INDEX + INT_SIZE] == FUNCTION:
-				INDEX += INT_SIZE
-				function_id = data[INDEX]
-				INDEX += 1  # Move past function ID
+		# Set start page
+		numbers = [prev_page]
+
+		if index == LENGTH or data[index:index + INT_SIZE] == EXT_SEPARATOR:
+			images[ext] = numbers
+			index += INT_SIZE
+			continue
+
+		# Get extension encoding
+		set_encoding(data[index] == 0x01)
+		index += 1 # Move past encoding byte
+
+		while index < LENGTH and data[index:index + INT_SIZE] != EXT_SEPARATOR:  # Until next separator
+
+			if data[index:index + int_size] == FUNCTION:
+				index += int_size
+				function_id = data[index]
+				index += 1  # Move past function ID
 
 				if function_id == RANGE_FUNCTION[0]:  # Integer range function
-					start = struct.unpack(struct_format, data[INDEX:INDEX + int_size])[0]
-					INDEX += int_size
-					range_len = struct.unpack(STRUCT, data[INDEX:INDEX + INT_SIZE])[0]
-					INDEX += int_size
+					start = prev_page + struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					range_len = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
+					index += INT_SIZE
 
 					numbers.extend(range(start, start + range_len))
 
 				elif function_id == STEP_RANGE_FUNCTION[0]:  # Stepped range
-					step = struct.unpack(STRUCT, data[INDEX:INDEX + INT_SIZE])[0]
-					INDEX += int_size
-					start = struct.unpack(struct_format, data[INDEX:INDEX + int_size])[0]
-					INDEX += int_size
-					range_len = struct.unpack(STRUCT, data[INDEX:INDEX + INT_SIZE])[0]
-					INDEX += int_size
+					step = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
+					index += INT_SIZE
+					start = struct.unpack(struct_format, data[index:index + int_size])[0]
+					index += int_size
+					range_len = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
+					index += INT_SIZE
 
 					numbers.extend(range(start, start + step * range_len, step))
 
 				else:
 					raise ValueError(f"Unknown function ID: {function_id}")
 
+				prev_page = numbers[-1]
+
 			else:  # Regular number
-				num = struct.unpack(struct_format, data[INDEX:INDEX + int_size])[0]
-				INDEX += int_size
-				numbers.append(num)
+				prev_page = prev_page + struct.unpack(struct_format, data[index:index + int_size])[0]
+				index += int_size
+				numbers.append(prev_page)
 
 		images[ext] = numbers
 		added_pages.update(numbers)
-		INDEX += INT_SIZE  # Move past separator
+		index += INT_SIZE  # Move past separator
 
 	# Fill default extension pages
 	images[default_ext] = [i for i in range(1, page_amount + 1) if i not in added_pages]
