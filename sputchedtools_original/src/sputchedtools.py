@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.0'
+__version__ = '0.33.1'
 
 # ----------------CLASSES-----------------
 
@@ -16,7 +16,8 @@ __version__ = '0.33.0'
 class TimerLap:
 	start: float
 	end: float
-	name: str = ""
+	diff: float
+	name: Optional[str]
 
 class Timer:
 	"""
@@ -47,13 +48,11 @@ class Timer:
 		self._start_time = self._last_lap = self.time()
 		return self
 
-	def lap(self, name: str = "") -> float:
+	def lap(self, name: str = None):
 		now = self.time()
-		lap_time = TimerLap(self._last_lap, now, name)
-		self.laps.append(lap_time)
+		lap = TimerLap(self._last_lap, now, self._last_lap - now, name)
+		self.laps.append(lap)
 		self._last_lap = now
-
-		return now - self._last_lap
 
 	def format_output(self, seconds: float) -> str:
 		fmt = self.fmt
@@ -1763,6 +1762,7 @@ def compress_images(images: dict[str, list[int]], page_amount: int = None) -> by
 	FUNCTION = b'\xFF'
 	RANGE_FUNCTION = ENCODING = encoding = b'\x01'  # Consecutive range (step=1)
 	STEP_RANGE_FUNCTION = b'\x02'  # Stepped range
+	# CONSEC_BYTES_FUNCTION = b'\x03'
 	STRUCT = struct_format = '>B'
 
 	# Default extension, page amount from received data
@@ -1843,6 +1843,7 @@ def decompress_images(data: bytes) -> dict:
 	FUNCTION = b'\xFF'
 	RANGE_FUNCTION = b'\x01'
 	STEP_RANGE_FUNCTION = b'\x02'
+	# CONSEC_BYTES_FUNCTION = b'\x03'
 	STRUCT = struct_format = '>B'
 
 	# Stream constants
