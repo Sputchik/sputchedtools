@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.1'
+__version__ = '0.33.2'
 
 # ----------------CLASSES-----------------
 
@@ -45,14 +45,14 @@ class Timer:
 		self.laps: list[TimerLap] = []
 
 	def __enter__(self) -> 'Timer':
-		self._start_time = self._last_lap = self.time()
+		self._start_time = self.last_lap = self.time()
 		return self
 
 	def lap(self, name: str = None):
 		now = self.time()
-		lap = TimerLap(self._last_lap, now, self._last_lap - now, name)
+		lap = TimerLap(self.last_lap, now, now - self.last_lap, name)
 		self.laps.append(lap)
-		self._last_lap = now
+		self.last_lap = now
 
 	def format_output(self, seconds: float) -> str:
 		fmt = self.fmt
@@ -542,6 +542,11 @@ class Config:
 				if 0 <= num < len(options):
 					selected_option = num
 
+			elif key == b't': # Toggle all
+				for option in options:
+					if option.callback == Callbacks.toggle:
+						option.value = not option.value
+
 			elif key == b'w': # Move up
 				selected_option = (selected_option - 1) % len(options)
 
@@ -701,10 +706,16 @@ class Config:
 					selected_option = 0
 				except ValueError:
 					pass
+
 			elif key.isdigit():  # Number selection
 				num = int(key) - 1
 				if 0 <= num < len(options):
 					selected_option = num
+
+			elif key == 't': # Toggle all
+				for option in options:
+					if option.callback == Callbacks.toggle:
+						option.value = not option.value
 
 			elif key == 'w':  # Alternative up
 				selected_option = (selected_option - 1) % len(options)
@@ -760,6 +771,11 @@ class Config:
 					self.set_page(page)
 				except ValueError:
 					pass
+
+			elif inp == 't': # Toggle all
+				for option in options:
+					if option.callback == Callbacks.toggle:
+						option.value = not option.value
 
 			elif inp == 'a':
 				self.add_page(-1)
