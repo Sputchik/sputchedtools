@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.3'
+__version__ = '0.33.4'
 
 # ----------------CLASSES-----------------
 
@@ -942,28 +942,21 @@ class aio:
 
 	@staticmethod
 	async def fuckoff(
-		method: RequestMethods,
-		url: str,
-		session,
-		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]],
+		*request_args,
 		filter: Callable[[Any], Union[bool, None]] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
 		interval: None | float = 5.0,
 		retries: int = -1,
-		**request_args
-	) -> list[Any | None] | None:
+		**kwargs
+	) -> Union[list[Any], None]:
 
 		if interval:
 			import asyncio
 
 		while retries != 0:
 			items = await aio.request(
-				method,
-				url,
-				toreturn = toreturn,
-				session = session,
-				raise_exceptions = True,
-				filter = filter,
-				**request_args
+				*request_args,
+				filter = filter
+				**kwargs
 			)
 
 			if items:
@@ -977,7 +970,7 @@ class aio:
 
 			retries -= 1
 
-		return [None for i in range(len(toreturn))]
+		return None
 
 	@staticmethod
 	async def open(
