@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.5'
+__version__ = '0.33.6'
 
 # ----------------CLASSES-----------------
 
@@ -804,8 +804,8 @@ class aio:
 	async def request(
 		method: RequestMethods,
 		url: str,
-		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
 		session = None,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
@@ -914,31 +914,31 @@ class aio:
 			if httpx: await ses.aclose()
 			else: await ses.close()
 
-		return return_items if not filter else None
+		return return_items
 
 	@staticmethod
 	async def get(
 		url: str,
-		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
 		session = None,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
 	) -> list[Any]:
-		return await aio.request('GET', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
+		return await aio.request('GET', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
 	async def post(
 		url: str,
-		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
 		session = None,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
 	) -> list[Any]:
-		return await aio.request('POST', url, toreturn, session, raise_exceptions, httpx, niquests, **kwargs)
+		return await aio.request('POST', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
 	async def fuckoff(
@@ -970,7 +970,7 @@ class aio:
 
 			retries -= 1
 
-		return None
+		return
 
 	@staticmethod
 	async def open(
