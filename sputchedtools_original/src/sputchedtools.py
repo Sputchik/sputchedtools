@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.2'
+__version__ = '0.33.3'
 
 # ----------------CLASSES-----------------
 
@@ -1911,6 +1911,7 @@ def decompress_images(data: bytes) -> dict:
 
 		if index == LENGTH or data[index:index + INT_SIZE] == EXT_SEPARATOR:
 			images[ext] = numbers
+			added_pages.update(numbers)
 			index += INT_SIZE
 			continue
 
