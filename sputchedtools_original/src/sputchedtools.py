@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.4'
+__version__ = '0.33.5'
 
 # ----------------CLASSES-----------------
 
@@ -914,7 +914,7 @@ class aio:
 			if httpx: await ses.aclose()
 			else: await ses.close()
 
-		return return_items
+		return return_items if not filter else None
 
 	@staticmethod
 	async def get(
@@ -955,7 +955,7 @@ class aio:
 		while retries != 0:
 			items = await aio.request(
 				*request_args,
-				filter = filter
+				filter = filter,
 				**kwargs
 			)
 
