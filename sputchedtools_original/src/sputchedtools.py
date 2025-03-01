@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.6'
+__version__ = '0.33.8'
 
 # ----------------CLASSES-----------------
 
@@ -942,19 +942,27 @@ class aio:
 
 	@staticmethod
 	async def fuckoff(
-		*request_args,
+		method: RequestMethods,
+		url: str,
+		session = None,
+		toreturn: Union[ReturnTypes, Iterable[ReturnTypes]] = 'text',
+		raise_exceptions: bool = False,
+		httpx: bool = False,
+		niquests: bool = False,
 		filter: Callable[[Any], Union[bool, None]] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
 		interval: None | float = 5.0,
 		retries: int = -1,
 		**kwargs
-	) -> Union[list[Any], None]:
+	) -> list[Any]:
 
 		if interval:
 			import asyncio
 
 		while retries != 0:
 			items = await aio.request(
-				*request_args,
+				method, url, session, toreturn,
+				raise_exceptions,
+				httpx, niquests,
 				filter = filter,
 				**kwargs
 			)
@@ -970,7 +978,7 @@ class aio:
 
 			retries -= 1
 
-		return
+		return [None for i in range(len(toreturn))]
 
 	@staticmethod
 	async def open(
@@ -1725,11 +1733,15 @@ def compress_images(images: dict[str, list[int]], page_amount: int = None) -> by
 				while i + length < numbers_len and numbers[i + length] == page + range_step * length:
 					length += 1
 
-				if length >= 4:  # Apply stepped range encoding
+				# Use range function
+				if length >= 4:
 					data.extend(FUNCTION)
 
+					# Default range
 					if range_step == 1:
-						data.extend(RANGE_FUNCTION)  # Use original function for step=1
+						data.extend(RANGE_FUNCTION)
+
+					# Custom step range
 					else:
 						data.extend(STEP_RANGE_FUNCTION)
 						data.extend(struct.pack(STRUCT, range_step))
@@ -1920,18 +1932,26 @@ def decompress_images(data: bytes) -> dict:
 				index += 1  # Move past function ID
 
 				if function_id == RANGE_FUNCTION[0]:  # Integer range function
+					# Start - steps from previous page
 					start = prev_page + struct.unpack(struct_format, data[index:index + int_size])[0]
 					index += int_size
+
+					# Range length
 					range_len = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
 					index += INT_SIZE
 
 					numbers.extend(range(start, start + range_len))
 
 				elif function_id == STEP_RANGE_FUNCTION[0]:  # Stepped range
+					# Range step
 					step = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
 					index += INT_SIZE
-					start = struct.unpack(struct_format, data[index:index + int_size])[0]
+
+					# Start - steps from previous page
+					start = prev_page + struct.unpack(struct_format, data[index:index + int_size])[0]
 					index += int_size
+
+					# Range length
 					range_len = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
 					index += INT_SIZE
 
