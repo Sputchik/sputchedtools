@@ -35,12 +35,12 @@ async def test_aio(**kwargs):
 
 def test_num():
 	num.suffixes = ['', 'K', 'M', 'B', 'T', 1000]
-	
+
 	with NewLiner(), Timer():
 		for i in range(num_test_iters):
-			d = random.uniform(-100000, 100000)
+			d = random.randint(-100000, 100000)
 			e = num.beautify(d, -1)
-			print(d, e, num.unshorten(e), sep = ' - ')
+			print(d, e, num.unshorten(e), sep = ' | ')
 
 @pytest.mark.asyncio
 async def test_MC_Versions():
@@ -53,7 +53,7 @@ async def test_MC_Versions():
 def test_compress():
 	files = (_compress_file, compress_folder)
 	num.suffixes = num.fileSize_suffixes
-	
+
 	with NewLiner():
 		for file in files:
 			for algo in algorithms:
@@ -124,7 +124,7 @@ def test_anim():
 if __name__ == '__main__':
 	asyncio.run(test_aio(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
 	asyncio.run(test_MC_Versions())
-		
+
 	test_num()
 	test_compress()
 	test_decompress()

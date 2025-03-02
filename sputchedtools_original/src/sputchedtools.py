@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.33.8'
+__version__ = '0.34.0'
 
 # ----------------CLASSES-----------------
 
@@ -812,7 +812,7 @@ class aio:
 		*,
 		filter: Callable[[Any], bool] = None,
 		**kwargs,
-	) -> list[Any]:
+	) -> Union[list[Any], Literal[0], None]:
 
 		"""
 		Accepts:
@@ -843,7 +843,10 @@ class aio:
 
 		import asyncio, inspect
 
-		if not session:
+		if session:
+			ses = session
+
+		else:
 			if httpx:
 				import httpx
 				ses = httpx.AsyncClient(http2 = True, follow_redirects = True)
@@ -856,13 +859,8 @@ class aio:
 				import aiohttp
 				ses = aiohttp.ClientSession()
 
-			# ses = CreateSession()
-
-		else:
-			ses = session
-
 		if isinstance(toreturn, str):
-			toreturn = toreturn.split('+') # Previous data return method
+			toreturn = toreturn.split('+')
 
 		return_items = []
 
@@ -870,12 +868,12 @@ class aio:
 			response = await ses.request(method, url, **kwargs)
 
 			if filter:
-				is_ok = filter(response)
-				if inspect.iscoroutine(is_ok):
-					is_ok = await is_ok
+				ok = filter(response)
+				if inspect.iscoroutine(ok):
+					ok = await ok
 
-				if not is_ok:
-					return is_ok
+				if ok is not True:
+					return ok
 
 			for item in toreturn:
 
@@ -897,18 +895,11 @@ class aio:
 
 				return_items.append(result)
 
-		except asyncio.TimeoutError:
-			return_items.insert(0, 0)
-
-		except:
+		except Exception as e:
 			if raise_exceptions:
 				raise
 
-			items_length = len(return_items)
-			return_length = len(toreturn)
-
-			for _ in range(items_length, return_length):
-				return_items.append(None)
+			return_items = None if not isinstance(e, asyncio.TimeoutError) else 0
 
 		if not session:
 			if httpx: await ses.aclose()
@@ -925,7 +916,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> list[Any]:
+	) -> Union[list[Any], Literal[0], None]:
 		return await aio.request('GET', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -937,7 +928,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> list[Any]:
+	) -> Union[list[Any], Literal[0], None]:
 		return await aio.request('POST', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -950,10 +941,10 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		filter: Callable[[Any], Union[bool, None]] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
-		interval: None | float = 5.0,
+		interval: Union[float, None] = 5.0,
 		retries: int = -1,
 		**kwargs
-	) -> list[Any]:
+	) -> Union[list[Any], Literal[0], None]:
 
 		if interval:
 			import asyncio
@@ -977,8 +968,6 @@ class aio:
 				await asyncio.sleep(interval)
 
 			retries -= 1
-
-		return [None for i in range(len(toreturn))]
 
 	@staticmethod
 	async def open(
