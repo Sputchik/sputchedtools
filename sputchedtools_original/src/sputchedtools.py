@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.34.0'
+__version__ = '0.34.1'
 
 # ----------------CLASSES-----------------
 
@@ -1074,9 +1074,8 @@ class num:
 	"""
 
 	suffixes: list[Union[str, int]] = ['', 'K', 'M', 'B', 'T', 1000]
-	fileSize_suffixes: list[Union[str, int]] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
+	fileSize_suffixes: list[Union[str, int]] = [' B', ' KB', ' MB', ' GB', ' TB', 1000]
 	sfx = fileSize_suffixes
-
 	deshorteners: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 
@@ -1084,6 +1083,7 @@ class num:
 	def shorten(
 		value: Union[int, float],
 		decimals: int = -1,
+		round_decimals: bool = True,
 		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
 
@@ -1106,10 +1106,12 @@ class num:
 
 		for i, suffix in enumerate(suffixes[:-1]):
 			unit = magnitude ** i
-			if absvalue < unit * magnitude or i == len(suffixes) - 1:
-				value /= unit
-				formatted: str = num.decim_round(value, decimals, decims = [100, 10, 1])
-				return formatted + suffix
+			if absvalue < unit * magnitude:
+				break
+
+		value /= unit
+		formatted: str = num.decim_round(value, decimals, round_decimals, decims = [100, 10, 1])
+		return formatted + suffix
 
 	@staticmethod
 	def unshorten(
@@ -1153,9 +1155,9 @@ class num:
 	def decim_round(
 		value: float,
 		decimals: int = -1,
-		round_if_num_gt_1: bool = True,
-		precission: int = 20,
-		decims: Optional[list[int]] = None
+		round_decimals: bool = False,
+		precission: int = 14,
+		decims: Optional[list[int]] = None,
 	) -> str:
 
 		"""
@@ -1163,9 +1165,7 @@ class num:
 
 			- value: float - usually with medium-big decimal length
 
-			- round_if_num_gt_1: bool - Wether to use built-in round() method to round received value to received decimals (None if 0)
-
-			- decimals: int - amount of digits (+2 for rounding, after decimal point) that will be used in 'calculations'
+			- decimals: int - amount of float decimals (+2 for rounding, after decimal point) that will be used in 'calculations'
 
 			- precission: int - precission level (format(value, f'.->{precission}<-f'
 
@@ -1177,17 +1177,23 @@ class num:
 
 		"""
 
-		if isinstance(value, int): return str(value)
+		if value.is_integer():
+			# Wether to remove trailing `.0` from received float
+			if decimals != 0:
+				return str(value)
 
+			return str(int(value))
+
+		# Convert float into string with given <percission>
 		str_val = format(value, f'.{precission}f')
+		number, decim = str_val.split('.')
 
-		integer, decim = str_val.split('.')
-		round_if_num_gt_1 = abs(value) > 1 and round_if_num_gt_1
+		round_if_num_gt_1 = round_decimals and abs(value) > 1
 
-		if decimals == -1:
+		if decimals == -1: # Find best-suited decimal based on <decims>
 			absvalue = abs(value)
 			decims = decims or num.decims
-			decimals = len(decims)
+			decimals = len(decims) # If value is lower than decims[-1], use its len
 
 			for decim_amount, min_num in enumerate(decims):
 				if absvalue < min_num: continue
@@ -1198,25 +1204,28 @@ class num:
 				decimals = decim_amount
 				break
 
-		if round_if_num_gt_1:
+		if decimals == 0:
+			return str(int(value))
+
+		elif round_if_num_gt_1:
 			return str(round(value, decimals or None))
 
 		for i, char in enumerate(decim):
 			if char != '0': break
 
-		decim = decim[i:i + decimals + 2].rstrip('0')
+		zeroes = '0' * i
 
-		if decim == '':
-			return integer
-
-		if len(decim) > decimals:
+		if round_decimals and len(decim) > i + decimals + 2:
 			round_part = decim[:decimals] + '.' + decim[decimals:]
-			rounded = str(round(float(round_part))).rstrip('0')
-			decim = '0' * i + rounded
+			after_zeroes = str(round(float(round_part))).rstrip('0')
+			decim = zeroes + after_zeroes
 
-		else: decim = '0' * i + str(decim)
+		else:
+			decim = zeroes + decim[i:i + decimals]
 
-		return (integer + '.' + decim).rstrip('.')
+		return f'{number}.{decim}'
+
+	decim = decim_round
 
 	@staticmethod
 	def beautify(value: Union[int, float], decimals: int = -1, precission: int = 20) -> str:
