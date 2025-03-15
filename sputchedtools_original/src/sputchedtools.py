@@ -8,7 +8,7 @@ RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPT
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.34.1'
+__version__ = '0.34.2'
 
 # ----------------CLASSES-----------------
 
@@ -99,7 +99,7 @@ class ProgressBar:
 
 		if iterator and not isinstance(iterator, Iterator):
 			if not hasattr(iterator, '__iter__'):
-				raise AttributeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+				raise TypeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
 
 			self.iterator = iterator.__iter__()
 
@@ -108,7 +108,7 @@ class ProgressBar:
 
 		if task_amount is None:
 			if iterator and not hasattr(iterator, '__len__'):
-				raise AttributeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
+				raise TypeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
 
 			elif iterator:
 				self.task_amount = iterator.__len__()
@@ -1084,6 +1084,7 @@ class num:
 		value: Union[int, float],
 		decimals: int = -1,
 		round_decimals: bool = True,
+		precission: int = 14,
 		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
 
@@ -1110,7 +1111,7 @@ class num:
 				break
 
 		value /= unit
-		formatted: str = num.decim_round(value, decimals, round_decimals, decims = [100, 10, 1])
+		formatted: str = num.decim_round(value, decimals, round_decimals, precission, decims = [100, 10, 1])
 		return formatted + suffix
 
 	@staticmethod
@@ -1214,10 +1215,11 @@ class num:
 			if char != '0': break
 
 		zeroes = '0' * i
+		decim = decim.rstrip('0')
 
 		if round_decimals and len(decim) > i + decimals + 2:
 			round_part = decim[:decimals] + '.' + decim[decimals:]
-			after_zeroes = str(round(float(round_part))).rstrip('0')
+			after_zeroes = str(round(float(round_part)))
 			decim = zeroes + after_zeroes
 
 		else:
@@ -1787,7 +1789,7 @@ def compress_images(images: dict[str, list[int]], page_amount: int = None) -> by
 	# Default extension, page amount from received data
 	default_ext = max(images, key = lambda ext: len(images[ext]))
 	page_amount = page_amount or max(max(sublist) for sublist in images.values())
-	assert  page_amount < 65535, "Invalid page amount, Allowed from 1 to 65534"
+	assert page_amount < 65535, "Invalid page amount, Allowed from 1 to 65534"
 
 	# Choose encoding type
 	if page_amount >= 0xFF:
