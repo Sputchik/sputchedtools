@@ -1,14 +1,15 @@
-from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO
+from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO, NewType
 from collections.abc import Iterator, Iterable
 from dataclasses import dataclass
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
+Formattable = NewType('Formattable', str)
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.34.2'
+__version__ = '0.34.3'
 
 # ----------------CLASSES-----------------
 
@@ -32,7 +33,7 @@ class Timer:
 
 	def __init__(
 		self,
-		fmt: Union[str, Literal[False]] = "Taken time: %s",
+		fmt: Union[Formattable, Literal[False]] = "Taken time: %s",
 		add_unit: bool = True
 	):
 
@@ -76,10 +77,8 @@ class Timer:
 		self.__exit__(*exc)
 
 class NewLiner:
-
 	"""
 	Simply adds a new line before and after the block of code
-
 	"""
 
 	def __enter__(self):
@@ -359,9 +358,10 @@ class Callbacks:
 class Option:
 	def __init__(
 		self,
-		name: str = '',
+		description: str = '',
 		value: str = '',
-		callback: Callbacks = Callbacks.direct,
+		id: Any = None,
+		callback: Callbacks = Callbacks.direct, # Pending rename to `type`
 		values: Optional[list[str]] = None
 	):
 		"""
@@ -369,33 +369,40 @@ class Option:
 		value: str - Option default value
 		callback: Callbacks - Option callback type
 			direct: 1 - Direct in-console editing
-			toggle: 2 - Toggle option. Note that `value` won't be displayed
+			toggle: 2 - Toggle option. Note that `value` won't be displayed and is bool
 			callable: 3 - Custom callback function. Receives option name or index (configurable in `Config`), returned value will be set as option value
 
 		values: list[str] - Option values
 		"""
 
-		self.name = name
+		self.description = description
 		self.value = value
+		self.id = id or description # Option identifier
 		self.callback = callback
 		self.values = values
+
+		# Check if provided value exists in value list
 		if values and value not in values:
 			self.value = values[0]
 
 class Config:
 	def __init__(
 		self,
-		options: list[Option],
-		per_page: int = 9,
-		callback_option_name: bool = True
+		options: list[Union[Option, list[Option]]],
+		per_page: int = 9
 	):
 		self.per_page = per_page
-		self.cbname = callback_option_name
-		self.oplen = len(options)
+
+		is_rowed = isinstance(options[0], list)
+		if is_rowed:
+			self.options = options
+			self.page_amount = sum(len(row) for row in options)
+
+		else:
+			self.page_amount = len(options)
+			self.options = [options[i:i + per_page] for i in range(0, self.page_amount, per_page)]
 
 		self.orig_options = options
-		self.options = [options[i : i + per_page] for i in range(0, self.oplen, per_page)]
-		self.page_amount = len(self.options)
 
 		from sys import platform
 		if 'win' in platform or 'nt' in platform:
@@ -443,7 +450,7 @@ class Config:
 				else:
 					value = ''
 
-				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name}{value}')
+				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.description}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -514,10 +521,7 @@ class Config:
 				if option.callback == Callbacks.toggle:
 					option.value = not option.value
 				elif option.callback == Callbacks.callable:
-					if self.cbname:
-						option.callback(option.name)
-					else:
-						option.callback(self.index * self.per_page + selected_option)
+					option.callback(option.description)
 				elif option.values:
 					current_idx = option.values.index(option.value)
 					option.value = option.values[(current_idx + 1) % len(option.values)]
@@ -561,15 +565,12 @@ class Config:
 				self.add_page(1)
 				selected_option = 0
 
-			elif key == b'q':  # Quit
-				break
-
-			elif key == b'\x1b':  # Escape key
+			elif key == b'q' or key == b'\x1b':  # Quit
 				break
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
-		return {option.name: option.value for option in self.orig_options}
+		return {option.id: option.value for option in self.orig_options}
 
 	def unix_cli(self) -> dict[str, str]:
 
@@ -625,7 +626,7 @@ class Config:
 				else:
 					value = ''
 
-				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.name}{value}')
+				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.description}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -684,7 +685,7 @@ class Config:
 					option.value = not option.value
 				elif option.callback == Callbacks.callable:
 					if self.cbname:
-						option.callback(option.name)
+						option.callback(option.description)
 					else:
 						option.callback(self.index * self.per_page + selected_option)
 				elif option.values:
@@ -728,7 +729,7 @@ class Config:
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
-		return {option.name: option.value for option in self.orig_options}
+		return {option.id: option.value for option in self.orig_options}
 
 	def any_cli(self) -> dict[str, str]:
 		self.index = 0
@@ -741,7 +742,7 @@ class Config:
 			for i, option in enumerate(options):
 				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
-				options_repr += (f'[{i + 1}]{toggle} {option.name}{value}\n')
+				options_repr += (f'[{i + 1}]{toggle} {option.description}{value}\n')
 
 			options_repr += f'\nPage {page}/{self.page_amount}'
 			options_repr += '\nOption: '
@@ -757,11 +758,11 @@ class Config:
 						option.value = not option.value
 					elif option.callback == Callbacks.callable:
 						if self.cbname:
-							option.callback(option.name)
+							option.callback(option.description)
 						else:
 							option.callback(self.index * self.per_page + num)
 					elif option.callback == Callbacks.direct:
-						new_value = input(f"New value for {option.name}: ")
+						new_value = input(f"New value for {option.description}: ")
 						option.value = new_value
 
 			elif inp == 'p':
@@ -787,7 +788,25 @@ class Config:
 				break
 
 		# Return all options
-		return {option.name: option.value for option in self.orig_options}
+		return {option.id: option.value for option in self.orig_options}
+
+class RequestError(Exception):
+	def __init__(self, *args, return_items_len: int):
+		self.return_items_len = return_items_len
+		super().__init__(*args)
+
+	def __bool__(self):
+		return False
+
+	# Simulate unpackable with return items length (a, b = response) => [None, None]
+	def __iter__(self):
+		for i in range(self.return_items_len):
+			yield i
+
+	def __str__(self):
+		return f'Error when making request: {self.args[0]}'
+	def __repr__(self):
+		return f'RequestError({self.args[0]})'
 
 class aio:
 
@@ -812,7 +831,7 @@ class aio:
 		*,
 		filter: Callable[[Any], bool] = None,
 		**kwargs,
-	) -> Union[list[Any], Literal[0], None]:
+	) -> Union[list[Any], RequestError]:
 
 		"""
 		Accepts:
@@ -820,28 +839,20 @@ class aio:
 			- method: `GET` or `POST` request type
 			- url: str
 
-			- toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties paths
-
 			- session: httpx/aiohttp Client Session
-
+			- toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties
 			- raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
-
 			- filter: Callable - Filters received response right after getting one
-
 			- any other session.request() argument
 
 		Returns:
-			- Valid response: list[*toreturn]
-
-			- Request Timeout: [0, *toreturn]
-			- Cancelled Error: [None, *toreturn]
+			- Valid response: list of toreturn items
+			- Exception at session.request(): RequestError
 
 		Raises:
-			Any Exception: If raise_exceptions else return_items + None * ( len(toreturn) - len(existing_items) )
+			Any Exception that can occur during session.request() and item processing
 
 		"""
-
-		import asyncio, inspect
 
 		if session:
 			ses = session
@@ -862,44 +873,52 @@ class aio:
 		if isinstance(toreturn, str):
 			toreturn = toreturn.split('+')
 
-		return_items = []
+		items_len = len(toreturn)
 
 		try:
 			response = await ses.request(method, url, **kwargs)
 
-			if filter:
-				ok = filter(response)
-				if inspect.iscoroutine(ok):
-					ok = await ok
-
-				if ok is not True:
-					return ok
-
-			for item in toreturn:
-
-				try:
-					result = getattr(response, item)
-
-					if inspect.iscoroutinefunction(result):
-						result = await result()
-					elif inspect.iscoroutine(result):
-						result = await result
-					elif callable(result):
-						result = result()
-
-				except:
-					if raise_exceptions:
-						raise
-
-					result = None
-
-				return_items.append(result)
-
 		except Exception as e:
-			if raise_exceptions:
-				raise
+			if not session:
+				if httpx: await ses.aclose()
+				else: await ses.close()
 
-			return_items = None if not isinstance(e, asyncio.TimeoutError) else 0
+			if raise_exceptions:
+				raise e
+
+			return RequestError(e, return_items_len = items_len)
+
+		import inspect
+
+		if filter:
+			ok = filter(response)
+			if inspect.iscoroutine(ok):
+				ok = await ok
+
+			if ok is not True:
+				return ok
+
+		return_items = []
+
+		for item in toreturn:
+
+			try:
+				result = getattr(response, item)
+
+				if inspect.iscoroutinefunction(result):
+					result = await result()
+				elif inspect.iscoroutine(result):
+					result = await result
+				elif callable(result):
+					result = result()
+
+			except:
+				if raise_exceptions:
+					raise
+
+				result = None
+
+			return_items.append(result)
 
 		if not session:
 			if httpx: await ses.aclose()
@@ -916,7 +935,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> Union[list[Any], Literal[0], None]:
+	) -> Union[list[Any], RequestError]:
 		return await aio.request('GET', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -928,7 +947,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> Union[list[Any], Literal[0], None]:
+	) -> Union[list[Any], RequestError]:
 		return await aio.request('POST', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -944,7 +963,7 @@ class aio:
 		interval: Union[float, None] = 5.0,
 		retries: int = -1,
 		**kwargs
-	) -> Union[list[Any], Literal[0], None]:
+	) -> Union[list[Any], RequestError]:
 
 		if interval:
 			import asyncio
@@ -1011,10 +1030,11 @@ class aio:
 	@staticmethod
 	async def sem_task(
 		semaphore,
-		func: Coroutine,
+		coro: Coroutine,
 	) -> Any:
+
 		async with semaphore:
-			return await func
+			return await coro
 
 class pyromisc:
 
@@ -1083,7 +1103,7 @@ class num:
 	def shorten(
 		value: Union[int, float],
 		decimals: int = -1,
-		round_decimals: bool = True,
+		round_decimals: bool = False,
 		precission: int = 14,
 		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
@@ -1117,7 +1137,7 @@ class num:
 	@staticmethod
 	def unshorten(
 		value: str,
-		_round: bool = True
+		_round: bool = False
 	) -> Union[float, str]:
 
 		"""
@@ -1230,8 +1250,8 @@ class num:
 	decim = decim_round
 
 	@staticmethod
-	def beautify(value: Union[int, float], decimals: int = -1, precission: int = 20) -> str:
-		return num.shorten(float(num.decim_round(value, decimals, precission = precission)), decimals)
+	def beautify(value: Union[int, float], decimals: int = -1, round_decimals: bool = False, precission: int = 14) -> str:
+		return num.shorten(float(num.decim_round(value, decimals, round_decimals, precission = precission)), decimals, round_decimals, precission)
 
 # -------------MINECRAFT-VERSIONING-LOL-------------
 
@@ -1240,7 +1260,7 @@ class MC_VersionList:
 		self.length = len(versions)
 
 		if self.length != len(indices):
-			raise ValueError
+			raise ValueError(f'Versions and indices length mismatch: {self.length} != {len(indices)}')
 
 		self.versions = versions
 		self.indices = indices
@@ -1252,8 +1272,7 @@ class MC_Versions:
 	"""
 
 	def __init__(self):
-		from re import findall
-		self.findall = findall
+		from re import compile
 		self.manifest_url = 'https://launchermeta.mojang.com/mc/game/version_manifest.json'
 
 		# Pattern for a single version
@@ -1261,9 +1280,7 @@ class MC_Versions:
 		# Pattern for a single version or a version range
 		item_pattern = rf'{version_pattern}(?:\s*-\s*{version_pattern})*'
 		# Full pattern allowing multiple items separated by commas
-		self.full_pattern = rf'{item_pattern}(?:,\s*{item_pattern})*'
-
-		self.release_versions = []
+		self.full_pattern = compile(rf'{item_pattern}(?:,\s*{item_pattern})*')
 
 	@classmethod
 	async def init(cls):
@@ -1327,14 +1344,9 @@ class MC_Versions:
 		manifest_data, status = response
 
 		if status != 200 or not isinstance(manifest_data, dict):
-			raise ConnectionError(f"Couldn't fetch minecraft versions manifest from `{self.manifest_url}`\nStatus: {status}")
+			raise ValueError(f"Couldn't fetch minecraft version manifest. Response: {response}")
 
-		self.release_versions: list[str] = []
-
-		for version in manifest_data['versions']:
-			if version['type'] == 'release':
-				self.release_versions.append(version['id'])
-
+		self.release_versions: list[str] = [version['id'] for version in manifest_data['versions'] if version['type'] == 'release']
 		self.release_versions.reverse() # Ascending
 
 	def is_version(self, version: str) -> bool:
