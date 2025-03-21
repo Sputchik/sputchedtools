@@ -1,7 +1,9 @@
-from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO, NewType
+from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO, NewType, TYPE_CHECKING
 from collections.abc import Iterator, Iterable
 from dataclasses import dataclass
-from _typeshed import OpenTextMode
+
+if TYPE_CHECKING:
+	from _typeshed import OpenTextMode
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
@@ -11,7 +13,7 @@ ActionModes = Literal['read', 'write']
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.34.4'
+__version__ = '0.34.5'
 
 # ----------------CLASSES-----------------
 
@@ -994,7 +996,7 @@ class aio:
 	async def open(
 		file: str,
 		action: ActionModes = 'read',
-		mode: OpenTextMode = 'r',
+		mode: 'OpenTextMode' = 'r',
 		content = None,
 		**kwargs
 	) -> Union[int, str, bytes]:
