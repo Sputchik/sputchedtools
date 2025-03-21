@@ -1,15 +1,17 @@
 from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO, NewType
 from collections.abc import Iterator, Iterable
 from dataclasses import dataclass
+from _typeshed import OpenTextMode
 
 ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 Formattable = NewType('Formattable', str)
+ActionModes = Literal['read', 'write']
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.34.3'
+__version__ = '0.34.4'
 
 # ----------------CLASSES-----------------
 
@@ -831,7 +833,7 @@ class aio:
 		*,
 		filter: Callable[[Any], bool] = None,
 		**kwargs,
-	) -> Union[list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError]:
 
 		"""
 		Accepts:
@@ -924,7 +926,7 @@ class aio:
 			if httpx: await ses.aclose()
 			else: await ses.close()
 
-		return return_items
+		return return_items if items_len != 1 else return_items[0]
 
 	@staticmethod
 	async def get(
@@ -935,7 +937,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> Union[list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError]:
 		return await aio.request('GET', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -947,7 +949,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> Union[list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError]:
 		return await aio.request('POST', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -963,7 +965,7 @@ class aio:
 		interval: Union[float, None] = 5.0,
 		retries: int = -1,
 		**kwargs
-	) -> Union[list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError]:
 
 		if interval:
 			import asyncio
@@ -991,8 +993,8 @@ class aio:
 	@staticmethod
 	async def open(
 		file: str,
-		action: str = 'read',
-		mode: str = 'r',
+		action: ActionModes = 'read',
+		mode: OpenTextMode = 'r',
 		content = None,
 		**kwargs
 	) -> Union[int, str, bytes]:
