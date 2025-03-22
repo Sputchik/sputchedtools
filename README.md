@@ -1,4 +1,4 @@
-# SputchedTools
+# spuchedtools
 
 Simple, lazy-import, powerful multi-purpose module, initially created to reduce repetitive definitions across projects
 
@@ -13,7 +13,7 @@ pip install sputchedtools
 # CLI
 
 ### Timer (1), NewLiner (2)
-Use as context manager to (1) measure code execution time, with formatting and lap (semi) support, (2) print new line before and after code block
+Use as context manager to (1) measure code execution time, with formatting and lap support, (2) print new line before and after code block
 
 ```python
 with NewLiner(), Timer('Taken time: %s %ms %us'):
@@ -106,8 +106,9 @@ async def main():
 		niquests = False,
 		# **request_args: headers, params, etc.
 	)
-	text = response[0] or 'None'
-
+	if not response:
+		raise response # Is 'RequestError' instance
+	text = response[0]
 	await aio.open(
 		file = 'response.txt',
 		action = 'write',
