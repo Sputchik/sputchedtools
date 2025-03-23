@@ -1,6 +1,5 @@
 from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO, NewType, TYPE_CHECKING
 from collections.abc import Iterator, Iterable
-from dataclasses import dataclass
 
 if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
@@ -10,25 +9,34 @@ Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd',
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 Formattable = NewType('Formattable', str)
 ActionModes = Literal['read', 'write']
+Number = Union[int, float]
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.34.5'
+__version__ = '0.35.0'
 
 # ----------------CLASSES-----------------
 
-@dataclass
 class TimerLap:
-	start: float
-	end: float
-	diff: float
-	name: Optional[str]
+	def __init__(self,
+		start: float,
+		end: float,
+		name: Optional[str]
+	):
+		self.start = start
+		self.end = end
+		self.diff = end - start
+		self.name = name
+
+	def __str__(self):
+		return f'{self.name} - {self.diff}s'
 
 class Timer:
 	"""
 	Code execution Timer
 
 	Format variables:
+		%a - auto, best-suited format
 		%s  - seconds
 		%ms - milliseconds
 		%us - microseconds
@@ -37,7 +45,7 @@ class Timer:
 
 	def __init__(
 		self,
-		fmt: Union[Formattable, Literal[False]] = "Taken time: %s",
+		fmt: Union[Formattable, Literal[False]] = "Taken time: %a",
 		add_unit: bool = True
 	):
 
@@ -55,13 +63,26 @@ class Timer:
 
 	def lap(self, name: str = None):
 		now = self.time()
-		lap = TimerLap(self.last_lap, now, now - self.last_lap, name)
-		self.laps.append(lap)
+		self.laps.append(TimerLap(self.last_lap, now, name))
 		self.last_lap = now
 
-	def format_output(self, seconds: float) -> str:
+	def format_output(self, seconds: Number) -> str:
 		fmt = self.fmt
 
+		# Handle auto format first
+		if '%a' in fmt:
+			val = seconds
+			if seconds >= 1:
+				unit = 's'
+			elif seconds >= 0.001:
+				val *= 1000
+				unit = 'ms'
+			else:
+				val *= 1000000
+				unit = 'us'
+			fmt = fmt.replace('%a', f'{num.decim_round(val)}{unit}', 1)
+
+		# Handle remaining formats
 		for mp, unit in zip([1, 1000, 1000000], self.time_fmts):
 			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}" if self.add_unit else '', 1)
 
@@ -90,6 +111,7 @@ class NewLiner:
 
 	def __exit__(self, *exc):
 		print(flush = True)
+
 
 class ProgressBar:
 	def __init__(
@@ -219,14 +241,34 @@ class ProgressBar:
 	async def __aexit__(self, *exc):
 		self.finish()
 
+
+class AnimChars:
+	cubic_spinner = ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
+	slash = ('\\', '|', '/', '―')
+	windows = ("⢀⠀", "⡀⠀", "⠄⠀", "⢂⠀", "⡂⠀", "⠅⠀", "⢃⠀", "⡃⠀", "⠍⠀", "⢋⠀", "⡋⠀", "⠍⠁", "⢋⠁", "⡋⠁", "⠍⠉", "⠋⠉", "⠋⠉", "⠉⠙", "⠉⠙", "⠉⠩", "⠈⢙", "⠈⡙", "⢈⠩", "⡀⢙", "⠄⡙", "⢂⠩", "⡂⢘", "⠅⡘", "⢃⠨", "⡃⢐", "⠍⡐", "⢋⠠", "⡋⢀", "⠍⡁", "⢋⠁", "⡋⠁", "⠍⠉", "⠋⠉", "⠋⠉", "⠉⠙", "⠉⠙", "⠉⠩", "⠈⢙", "⠈⡙", "⠈⠩", "⠀⢙", "⠀⡙", "⠀⠩", "⠀⢘", "⠀⡘", "⠀⠨", "⠀⢐", "⠀⡐", "⠀⠠", "⠀⢀")
+	simpleDots = ('.', '..', '...')
+	simpleDotsScrolling = (".  ", ".. ", "...", " ..", "  .", "   ")
+	circle = ("◜", "◠", "◝", "◟", "◡", "◞")
+	clock = ("🕛 ", "🕐 ", "🕑 ", "🕒 ", "🕓 ", "🕔 ", "🕕 ", "🕖 ", "🕗 ", "🕘 ", "🕙 ", "🕚 ")
+	clockBackwards = ("🕛 ", "🕚 ", "🕙 ", "🕘 ", "🕗 ", "🕖 ", "🕕 ", "🕔 ", "🕓 ", "🕒 ", "🕑 ", "🕐 ")
+	pingpong = ("▐⠂       ▌", "▐⠈       ▌", "▐ ⠂      ▌", "▐ ⠠      ▌", "▐  ⡀     ▌", "▐  ⠠     ▌", "▐   ⠂    ▌", "▐   ⠈    ▌", "▐    ⠂   ▌", "▐    ⠠   ▌", "▐     ⡀  ▌", "▐     ⠠  ▌", "▐      ⠂ ▌", "▐      ⠈ ▌", "▐       ⠂▌", "▐       ⠠▌", "▐       ⡀▌", "▐      ⠠ ▌", "▐      ⠂ ▌", "▐     ⠈  ▌", "▐     ⠂  ▌", "▐    ⠠   ▌", "▐    ⡀   ▌", "▐   ⠠    ▌", "▐   ⠂    ▌", "▐  ⠈     ▌", "▐  ⠂     ▌", "▐ ⠠      ▌", "▐ ⡀      ▌", "▐⠠       ▌")
+
 class Anim:
 	def __init__(
 		self,
+		# Formatting stuff
 		prepend_text: str = '', append_text: str = '',
-		clear_on_exit: Union[bool, str, None] = False,
-		delay: float = 0.03,
-		manual_update: bool = False,
-		chars: Optional[Iterable] = None
+		text_format: str = '{prepend} {char} {append}',
+		# This will be appended to the end
+		do_timer: Union[str, None] = None, # '(%a)',
+
+		delay: float = 0.08,
+		chars: Optional[AnimChars] = None,
+
+		# True -> Leave as is (Why)
+		# False -> Clear char
+		# None -> Whole line
+		clear_on_exit: Union[bool, None] = False,
 	):
 		from threading import Thread
 		from shutil import get_terminal_size
@@ -235,24 +277,19 @@ class Anim:
 		self.Thread = Thread
 		self.sleep = sleep
 
-		self.chars = chars or  ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
 		self.prepend_text = prepend_text
 		self.append_text = append_text
+		self.text_format = text_format
+		self.do_timer = do_timer
 
-		if len(self.prepend_text) != 0 and not self.prepend_text.endswith(' '):
-			self.prepend_text += ' '
-
-		self.clear_on_exit = clear_on_exit
+		self.chars = chars or  ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
 		self.delay = delay
-		self.manual_update = manual_update
+		self.clear_on_exit = clear_on_exit
 
-		self.terminal_size = get_terminal_size().columns
+		self.terminal_width = get_terminal_size().columns
 		self.chars = self.adapt_chars_spaces(self.chars)
 		self.char = self.chars[0]
 		self.done = False
-
-	def get_line(self) -> str:
-		return f'\r{self.prepend_text}{self.char}{self.append_text}'
 
 	@classmethod
 	def get_max_char_len(cls, chars: Iterable[Any]) -> int:
@@ -290,13 +327,14 @@ class Anim:
 
 		return new_chars
 
-	def set_chars(self, new_chars: Iterable):
-		self.chars = self.adapt_chars_spaces(new_chars)
+	@property
+	def _chars(self, chars: AnimChars):
+		self.chars = self.adapt_chars_spaces(chars)
 
 	def set_text(self, new_text: str, prepended: bool = True):
 		new_len = len(new_text)
-		if new_len > self.terminal_size:
-			return
+		# if new_len > self.terminal_width:
+		# 	return
 
 		if prepended:
 			attr = 'prepend_text'
@@ -311,48 +349,77 @@ class Anim:
 			spaces = ' ' * diff
 			self.safe_line_echo(self.get_line() + spaces)
 
-	def safe_line_echo(self, text: str):
-		if len(text) > self.terminal_size:
-			text = text[:self.terminal_size]
+	def safe_line_echo(self, line: str):
+		print(line, end = '', flush = True)
 
-		print(text, end = '', flush = True)
+	def get_line(self) -> str:
+		line = self.text_format.format(
+			prepend=self.prepend_text,
+			char=self.char,
+			append=self.append_text
+		)
+
+		if len(line) >= self.terminal_width:
+			line = line[:self.terminal_width - 4] + "..."
+
+		return f"\r{line}"
 
 	def update(self):
 		line = self.get_line()
-		self.safe_line_echo(line)
+		print(line, end = '', flush = True)
 
-	def anim(self):
-		while not self.done:
-			for self.char in self.chars:
-				if self.done: break
+	def _format_final_line(self, timer: Optional[Timer] = None) -> str:
+		base = '\r'
 
-				self.update()
-				self.sleep(self.delay)
+		if timer:
+			timer.fmt = self.do_timer
+			# Format with timer
+			return base + self.text_format.format(
+				prepend = self.prepend_text,
+				char = ' ' * len(self.char),
+				append = self.append_text + timer.format_output(timer.diff)
+			)
 
-		if self.clear_on_exit is True:
-			self.safe_line_echo('\r' + ' ' * len(self.get_line()) + '\r')
-
-		elif isinstance(self.clear_on_exit, str):
-			self.safe_line_echo('\r' + self.prepend_text + self.char + self.append_text + self.clear_on_exit)
+		elif self.clear_on_exit is True:
+			# Clear entire line
+			return base + ' ' * len(self.get_line()) + base
 
 		elif self.clear_on_exit is False:
-			self.safe_line_echo('\r' + self.prepend_text + ' ' * len(self.char) + self.append_text)
-
-	def __enter__(self) -> 'Anim':
-		if self.manual_update:
-			self.update()
+			# Clear only animation char
+			return base + self.text_format.format(
+				prepend = self.prepend_text,
+				char = ' ' * len(self.char),
+				append = self.append_text
+			)
 
 		else:
-			self.thread = self.Thread(target=self.anim)
-			self.thread.daemon = True
-			self.thread.start()
+			# Leave as is
+			return base + self.get_line()
+
+	def anim(self):
+		with Timer(False) as t:
+			while not self.done:
+				for self.char in self.chars:
+					if self.done: break
+
+					self.update()
+					self.sleep(self.delay)
+
+		# Format and display final line
+		final_line = self._format_final_line(t if self.do_timer else None)
+		self.safe_line_echo(final_line)
+
+	def __enter__(self) -> 'Anim':
+		self.thread = self.Thread(target=self.anim)
+		self.thread.daemon = True
+		self.thread.start()
 
 		return self
 
 	def __exit__(self, *exc):
-		if not self.manual_update:
-			self.done = True
-			self.thread.join()
+		self.done = True
+		self.thread.join()
+
 
 class Callbacks:
 	direct = 1
@@ -812,6 +879,7 @@ class RequestError(Exception):
 	def __repr__(self):
 		return f'RequestError({self.args[0]})'
 
+
 class aio:
 
 	"""
@@ -1079,6 +1147,7 @@ class pyromisc:
 
 		return slug
 
+
 class num:
 
 	"""
@@ -1180,7 +1249,7 @@ class num:
 	def decim_round(
 		value: float,
 		decimals: int = -1,
-		round_decimals: bool = False,
+		round_decimals: bool = True,
 		precission: int = 14,
 		decims: Optional[list[int]] = None,
 	) -> str:
@@ -1213,7 +1282,7 @@ class num:
 		str_val = format(value, f'.{precission}f')
 		number, decim = str_val.split('.')
 
-		round_if_num_gt_1 = round_decimals and abs(value) > 1
+		num_gt_1 = abs(value) > 1
 
 		if decimals == -1: # Find best-suited decimal based on <decims>
 			absvalue = abs(value)
@@ -1221,10 +1290,8 @@ class num:
 			decimals = len(decims) # If value is lower than decims[-1], use its len
 
 			for decim_amount, min_num in enumerate(decims):
-				if absvalue < min_num: continue
-
-				elif round_if_num_gt_1:
-					return str(round(value, decim_amount or None))
+				if absvalue < min_num:
+					continue
 
 				decimals = decim_amount
 				break
@@ -1232,8 +1299,11 @@ class num:
 		if decimals == 0:
 			return str(int(value))
 
-		elif round_if_num_gt_1:
-			return str(round(value, decimals or None))
+		elif num_gt_1:
+			if round_decimals:
+				return str(round(value, decimals))
+			else:
+				return f'{number}.{decim[:decimals]}'
 
 		for i, char in enumerate(decim):
 			if char != '0': break
@@ -1255,7 +1325,9 @@ class num:
 
 	@staticmethod
 	def beautify(value: Union[int, float], decimals: int = -1, round_decimals: bool = False, precission: int = 14) -> str:
-		return num.shorten(float(num.decim_round(value, decimals, round_decimals, precission = precission)), decimals, round_decimals, precission)
+		return num.shorten(float(
+			num.decim_round(value, decimals, round_decimals, precission = precission)
+		), decimals, round_decimals, precission)
 
 # -------------MINECRAFT-VERSIONING-LOL-------------
 
