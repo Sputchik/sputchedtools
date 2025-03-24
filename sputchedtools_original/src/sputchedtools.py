@@ -13,7 +13,7 @@ Number = Union[int, float]
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.0'
+__version__ = '0.35.1'
 
 # ----------------CLASSES-----------------
 
@@ -263,6 +263,7 @@ class Anim:
 		do_timer: Union[str, None] = None, # '(%a)',
 
 		delay: float = 0.08,
+		nap_time: float = 0.01,
 		chars: Optional[AnimChars] = None,
 
 		# True -> Leave as is (Why)
@@ -281,10 +282,14 @@ class Anim:
 		self.append_text = append_text
 		self.text_format = text_format
 		self.do_timer = do_timer
+		self.clear_on_exit = clear_on_exit
 
 		self.chars = chars or  ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
 		self.delay = delay
-		self.clear_on_exit = clear_on_exit
+
+		self.nap_period = range(int(delay / nap_time))
+		self.normal_nap = nap_time
+		self.last_nap = delay % nap_time
 
 		self.terminal_width = get_terminal_size().columns
 		self.chars = self.adapt_chars_spaces(self.chars)
@@ -401,9 +406,13 @@ class Anim:
 			while not self.done:
 				for self.char in self.chars:
 					if self.done: break
-
 					self.update()
-					self.sleep(self.delay)
+
+					for _ in self.nap_period:
+						if self.done: break
+						self.sleep(self.normal_nap)
+
+					self.sleep(self.last_nap)
 
 		# Format and display final line
 		final_line = self._format_final_line(t if self.do_timer else None)
