@@ -13,7 +13,7 @@ Number = Union[int, float]
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.1'
+__version__ = '0.35.2'
 
 # ----------------CLASSES-----------------
 
@@ -1064,7 +1064,7 @@ class aio:
 			elif items is None:
 				return
 
-			elif interval and retries > 0:
+			elif interval and retries != 0:
 				await asyncio.sleep(interval)
 
 			retries -= 1
