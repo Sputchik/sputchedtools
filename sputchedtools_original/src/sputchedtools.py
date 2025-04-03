@@ -13,7 +13,7 @@ Number = Union[int, float]
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.2'
+__version__ = '0.35.3'
 
 # ----------------CLASSES-----------------
 
@@ -1331,6 +1331,29 @@ class num:
 		return f'{number}.{decim}'
 
 	decim = decim_round
+
+	def nicify(value: int) -> int:
+		"""Converts numbers: 1234 -> 1200, 278 -> 250, 399 -> 300, 478 -> 400 etc."""
+
+		if value == 0:
+			return value
+
+		import math
+		abs_value = abs(value)
+		exponent = math.floor(math.log10(abs_value))
+		factor = 10 ** exponent
+		scaled = abs_value / factor
+
+		if scaled < 3:
+			step = factor * 0.5 # 50
+		else:
+			step = factor# * 1 # 100
+
+		max_tick = math.floor(abs_value / step) * step
+		if value < 0:
+			max_tick = -max_tick
+
+		return int(max_tick)
 
 	@staticmethod
 	def beautify(value: Union[int, float], decimals: int = -1, round_decimals: bool = False, precission: int = 14) -> str:
