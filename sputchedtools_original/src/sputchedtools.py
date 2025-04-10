@@ -11,9 +11,16 @@ Formattable = NewType('Formattable', str)
 ActionModes = Literal['read', 'write']
 Number = Union[int, float]
 
+from typing import Protocol, TypeVar
+
+T = TypeVar('T')
+class Falsy(Protocol[T]):
+	def __bool__(self) -> bool:
+		return False
+
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.3'
+__version__ = '0.35.4'
 
 # ----------------CLASSES-----------------
 
