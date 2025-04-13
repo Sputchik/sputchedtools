@@ -1,5 +1,4 @@
-from typing import Coroutine, Literal, Any, Callable, Union, Optional, IO, NewType, TYPE_CHECKING
-from collections.abc import Iterator, Iterable
+from typing import Coroutine, Literal, Iterable, Iterator, Any, Callable, Union, Optional, IO, NewType, TYPE_CHECKING, Protocol, TypeVar
 
 if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
@@ -11,8 +10,6 @@ Formattable = NewType('Formattable', str)
 ActionModes = Literal['read', 'write']
 Number = Union[int, float]
 
-from typing import Protocol, TypeVar
-
 T = TypeVar('T')
 class Falsy(Protocol[T]):
 	def __bool__(self) -> bool:
@@ -20,9 +17,53 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.4'
+__version__ = '0.35.6'
 
 # ----------------CLASSES-----------------
+class JSON:
+	"""
+	Unifies json and orjson libraries
+	If `orjson` not installed, `ordumps` and `orloads` will be replaced with json's
+	Ensure you properly handle JSON.DUMP_TYPE / JSON.DUMP_MODE
+	"""
+
+	def __init__(self):
+		try:
+			import orjson
+			self.orjson = orjson
+			self.DUMP_TYPE = bytes
+			self.DUMP_MODE = 'b'
+			self.DUMP_WRITE = 'wb'
+
+			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
+				return orjson.dumps(obj, option = orjson.OPT_INDENT_2 if indent else None, **kwargs)
+			def orloads(data: bytes, **kwargs) -> dict:
+				return orjson.loads(data, **kwargs)
+
+			self.ordumps = ordumps
+			self.orloads = orloads
+
+		except ImportError:
+			self.orjson = None
+			self.DUMP_TYPE = str
+			self.DUMP_MODE = 'r'
+			self.DUMP_WRITE = 'w'
+
+			def ordumps(obj: dict, indent: bool = False, **kwargs) -> str:
+				return json.dumps(obj, indent = 2 if indent else None, **kwargs)
+			def orloads(data: str, **kwargs) -> dict:
+				return json.loads(data, **kwargs)
+
+			self.ordumps = ordumps
+			self.orloads = orloads
+
+		import json
+		self.json = json
+		self.dumps = json.dumps
+		self.loads = json.loads
+
+		self.stringify = self.dumps
+		self.parse = self.orloads
 
 class TimerLap:
 	def __init__(self,
@@ -878,20 +919,21 @@ class Config:
 		return {option.id: option.value for option in self.orig_options}
 
 class RequestError(Exception):
-	def __init__(self, *args, return_items_len: int):
+	def __init__(self, *args, return_items_len: Optional[int] = None):
+		"""Specify `return_items_len` if object may be unpacked (returns None)"""
 		self.return_items_len = return_items_len
 		super().__init__(*args)
 
 	def __bool__(self):
 		return False
 
-	# Simulate unpackable with return items length (a, b = response) => [None, None]
+	# Simulate unpackable with return items length - a, b = response => [None, None]
 	def __iter__(self):
 		for i in range(self.return_items_len):
 			yield i
 
 	def __str__(self):
-		return f'Error when making request: {self.args[0]}'
+		return f'Error making aio.request: {self.args[0]}'
 	def __repr__(self):
 		return f'RequestError({self.args[0]})'
 
@@ -1057,6 +1099,7 @@ class aio:
 			import asyncio
 
 		while retries != 0:
+			retries -= 1
 			items = await aio.request(
 				method, url, session, toreturn,
 				raise_exceptions,
@@ -1073,8 +1116,6 @@ class aio:
 
 			elif interval and retries != 0:
 				await asyncio.sleep(interval)
-
-			retries -= 1
 
 	@staticmethod
 	async def open(
@@ -1183,7 +1224,7 @@ class num:
 	"""
 
 	suffixes: list[Union[str, int]] = ['', 'K', 'M', 'B', 'T', 1000]
-	fileSize_suffixes: list[Union[str, int]] = [' B', ' KB', ' MB', ' GB', ' TB', 1000]
+	fileSize_suffixes: list[Union[str, int]] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
 	sfx = fileSize_suffixes
 	deshorteners: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
@@ -2099,6 +2140,6 @@ def decompress_images(data: bytes) -> dict:
 		index += INT_SIZE  # Move past separator
 
 	# Fill default extension pages
-	images[default_ext] = [i for i in range(1, page_amount + 1) if i not in added_pages]
+	images[default_ext] = list(set(range(1, page_amount + 1)) - added_pages)
 
 	return images
