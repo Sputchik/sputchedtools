@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.6'
+__version__ = '0.35.8'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -926,10 +926,11 @@ class Config:
 		return {option.id: option.value for option in self.orig_options}
 
 class RequestError(Exception):
-	def __init__(self, *args, return_items_len: Optional[int] = None):
+	def __init__(self, exc: Exception, return_items_len: int = 1):
 		"""Specify `return_items_len` if object may be unpacked (returns None)"""
 		self.return_items_len = return_items_len
-		super().__init__(*args)
+		self.orig_exc = exc
+		super().__init__(exc)
 
 	def __bool__(self):
 		return False
@@ -937,13 +938,15 @@ class RequestError(Exception):
 	# Simulate unpackable with return items length - a, b = response => [None, None]
 	def __iter__(self):
 		for i in range(self.return_items_len):
-			yield i
+			yield None
 
 	def __str__(self):
-		return f'Error making aio.request: {self.args[0]}'
+		return f'Error making aio.request: {self.orig_exc}'
 	def __repr__(self):
-		return f'RequestError({self.args[0]})'
+		return f'RequestError({self.orig_exc})'
 
+	def __getattr__(self, name):
+		return getattr(self.orig_exc, name)
 
 class aio:
 
