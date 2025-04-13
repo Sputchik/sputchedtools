@@ -61,6 +61,13 @@ class JSON:
 		self.json = json
 		self.dumps = json.dumps
 		self.loads = json.loads
+		self.detect_encoding = json.detect_encoding
+
+		self.DecodeError = json.JSONDecodeError
+		self.EncodeError = TypeError # orjson.JSONEncodeError
+
+		self.Decoder = json.JSONDecoder
+		self.Encoder = json.JSONEncoder
 
 		self.stringify = self.dumps
 		self.parse = self.orloads
