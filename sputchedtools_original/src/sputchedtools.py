@@ -17,14 +17,14 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.8'
+__version__ = '0.35.9'
 
 # ----------------CLASSES-----------------
 class JSON:
 	"""
 	Unifies json and orjson libraries
 	If `orjson` not installed, `ordumps` and `orloads` will be replaced with json's
-	Ensure you properly handle JSON.DUMP_TYPE / JSON.DUMP_MODE
+	Ensure you properly handle JSON.DUMP_TYPE / JSON.BYTE_SUFFIX (for non-write modes)
 	"""
 
 	def __init__(self):
@@ -32,7 +32,7 @@ class JSON:
 			import orjson
 			self.orjson = orjson
 			self.DUMP_TYPE = bytes
-			self.DUMP_MODE = 'b'
+			self.BYTE_SUFFIX = 'b'
 			self.DUMP_WRITE = 'wb'
 
 			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
@@ -46,7 +46,7 @@ class JSON:
 		except ImportError:
 			self.orjson = None
 			self.DUMP_TYPE = str
-			self.DUMP_MODE = 'r'
+			self.BYTE_SUFFIX = ''
 			self.DUMP_WRITE = 'w'
 
 			def ordumps(obj: dict, indent: bool = False, **kwargs) -> str:
@@ -58,6 +58,7 @@ class JSON:
 			self.orloads = orloads
 
 		import json
+		self.DUMP_MODE = self.BYTE_SUFFIX # Compatibility with older versions
 		self.json = json
 		self.dumps = json.dumps
 		self.loads = json.loads
@@ -84,7 +85,7 @@ class TimerLap:
 		self.name = name
 
 	def __str__(self):
-		return f'{self.name} - {self.diff}s'
+		return f'[{self.name}] {self.diff}s'
 
 class Timer:
 	"""
@@ -408,6 +409,9 @@ class Anim:
 			diff = abs(old_len - new_len)
 			spaces = ' ' * diff
 			self.safe_line_echo(self.get_line() + spaces)
+
+		else:
+			self.safe_line_echo(self.get_line())
 
 	def safe_line_echo(self, line: str):
 		print(line, end = '', flush = True)
@@ -1413,6 +1417,17 @@ class num:
 
 		return int(max_tick)
 
+	def bytesize_shorten(
+		value: Union[int, float],
+		decimals: int = -1,
+		round_decimals: bool = False,
+		precission: int = 14,
+		suffixes: Optional[list[Union[str, int]]] = None
+	) -> str:
+
+		"""num.shorten() wrapper with file size suffixes"""
+		return num.shorten(value, decimals, round_decimals, precission, suffixes or num.fileSize_suffixes)
+
 	@staticmethod
 	def beautify(value: Union[int, float], decimals: int = -1, round_decimals: bool = False, precission: int = 14) -> str:
 		return num.shorten(float(
@@ -1450,6 +1465,10 @@ class MC_Versions:
 
 	@classmethod
 	async def init(cls):
+		"""
+		Raises: RequestError if version manifest can't be fetched
+		"""
+
 		self = cls()
 		await self.fetch_version_manifest()
 		self.latest = self.release_versions[-1]
@@ -1510,7 +1529,7 @@ class MC_Versions:
 		manifest_data, status = response
 
 		if status != 200 or not isinstance(manifest_data, dict):
-			raise ValueError(f"Couldn't fetch minecraft version manifest. Response: {response}")
+			raise RequestError(f"Couldn't fetch minecraft version manifest ({status}). Data: {manifest_data}")
 
 		self.release_versions: list[str] = [version['id'] for version in manifest_data['versions'] if version['type'] == 'release']
 		self.release_versions.reverse() # Ascending
@@ -1543,7 +1562,7 @@ def enhance_loop() -> bool:
 	except ImportError:
 		return False
 
-def setup_logger(name: str, dir: str = 'logs/'):
+def setup_logger(name: str, dir: str = 'logs/', clear_file: bool = False):
 	"""
 	Sets up minimalistic logger with file (all levels) and console (>debug) handlers
 	Using queue.Queue to exclude logging from main thread
@@ -1557,7 +1576,8 @@ def setup_logger(name: str, dir: str = 'logs/'):
 	if not os.path.exists(dir):
 		os.makedirs(dir)
 
-	open(f'{dir}/{name}.log', 'w').write('')
+	if clear_file:
+		open(f'{dir}/{name}.log', 'w').write('')
 
 	logger = logging.getLogger(name)
 	logger.setLevel(logging.DEBUG)
@@ -1593,7 +1613,7 @@ def setup_logger(name: str, dir: str = 'logs/'):
 
 def get_content(source: Union[str, bytes, IO[bytes]]) -> tuple[Optional[int], Optional[bytes]]:
 	"""
-	Returns source byte content as tuple - (type, content)
+	Returns source byte content in tuple - (type, content)
 	Source can be either a file_path, readable buffer or just bytes
 
 	First tuple object is source type:
@@ -1703,14 +1723,14 @@ def compress(
 ) -> Union[int, bytes]:
 
 	algorithm_map = {
-		'gzip': (lambda: __import__('gzip').compress, {}, {'compression_level': 'compresslevel'}),
-		'bzip2': (lambda: __import__('bz2').compress, {}, {'compression_level': 'compresslevel'}),
-		'lzma': (lambda: __import__('lzma').compress, {}, {'compression_level': 'preset'}),
-		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ}, {'compression_level': 'preset'}),
-		'deflate': (lambda: __import__('zlib').compress, {}, {'compression_level': 'level'}),
-		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}, {'compression_level': 'compression_level'}),
-		'zstd': (lambda: __import__('zstandard').compress, {}, {'compression_level': 'level'}),
-		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC}, {'compression_level': 'quality'}),
+		'gzip': (lambda: __import__('gzip').compress, {}, {'level': 'compresslevel'}),
+		'bzip2': (lambda: __import__('bz2').compress, {}, {'level': 'compresslevel'}),
+		'lzma': (lambda: __import__('lzma').compress, {}, {'level': 'preset'}),
+		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ}, {'level': 'preset'}),
+		'deflate': (lambda: __import__('zlib').compress, {}, {'level': 'level'}),
+		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}, {'level': 'compression_level'}),
+		'zstd': (lambda: __import__('zstandard').compress, {}, {'level': 'level'}),
+		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC}, {'level': 'quality'}),
 	}
 
 	get_compress_func, additional_args, slug_map = algorithm_map[algorithm]
@@ -1730,7 +1750,7 @@ def compress(
 		additional_args = additional_args()
 
 	if compression_level:
-		compression_slug = slug_map.get('compression_level')
+		compression_slug = slug_map.get('level')
 
 		if compression_slug:
 			additional_args[compression_slug] = compression_level
@@ -1823,7 +1843,7 @@ def decompress(
 				break
 
 		if not algorithm:
-			raise ValueError(f"Couldn't detect algorithm for decompression, start bytes: {content[:10]}")
+			raise ValueError(f"Couldn't detect algorithm for decompression. First 10 bytes: {content[:10]}")
 
 	decompress = algorithm_map[algorithm][0]()
 	result = decompress(content, **kwargs)
@@ -1858,16 +1878,15 @@ def decompress(
 
 	return output
 
-def compress_images(images: dict[str, list[int]], page_amount: int = None) -> bytes:
+def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, repetitive: bool = False) -> bytes:
 	"""
 	ONLY Use if:
 
 	- Input page lists are sorted in ascending order.
-	- EVERY page (1 to `max_page`) is present in EXACTLY ONE extension.
-		Missing pages will be assigned to the default extension (auto-selected as the one
-		with the longest page list). Ties in page list lengths may cause incorrect defaults.
+	- You know if page numbers repeat across extensions (repetitive=True),
+	  otherwise missing pages will be assigned to the default extension.
+	  If not sure, always set repetitive=True
 
-	- Extensions (keys) do NOT contain null bytes (`\x00`).
 	- Page numbers do NOT exceed `page_amount` (if given).
 
 	Failure to meet these conditions will result in CORRUPTED output
@@ -1987,6 +2006,16 @@ def compress_images(images: dict[str, list[int]], page_amount: int = None) -> by
 	if len(images) == 1:
 		return bytes(data)
 
+	if repetitive:
+		# Iterate through all extensions and add pages that are present in default_ext
+		default_pages = set(images[default_ext])
+		other_pages = set(page for ext, pages in images.items() if ext != default_ext for page in pages)
+		repetitive_pages = list(default_pages.intersection(other_pages))
+
+		if repetitive_pages:
+			data.extend(b'\xFF') # Byte after page amount tells wether indices are repetitive
+			data.extend(encode_numbers(repetitive_pages))
+
 	# STRUCTURE:
 	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
 	# (default extension) & (encoding type) & (page amount) |
@@ -2035,55 +2064,8 @@ def decompress_images(data: bytes) -> dict:
 			struct_format = '>H'
 			int_size = 2
 
-	# --------------------CONSTANTS--------------------
-	# Custom Bytes
-	SEPARATOR = EXT_SEPARATOR = separator = b'\x00'
-	INT_SIZE = int_size = 1
-	FUNCTION = b'\xFF'
-	RANGE_FUNCTION = b'\x01'
-	STEP_RANGE_FUNCTION = b'\x02'
-	# CONSEC_BYTES_FUNCTION = b'\x03'
-	STRUCT = struct_format = '>B'
-
-	# Stream constants
-	index = 0
-	LENGTH = len(data)
-
-	# STRUCTURE:
-	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
-	# (default extension) & (encoding type) & (page amount) |
-	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
-
-	# Get default extension
-	default_ext = read_string()
-
-	# Get encoding flag
-	ENCODING = data[index]
-	index += 1  # Move past encoding flag
-
-	if ENCODING == 0x02:
-		set_encoding()
-		STRUCT = struct_format
-		INT_SIZE = int_size
-		EXT_SEPARATOR = separator
-
-	# Get page amount
-	page_amount = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
-	index += INT_SIZE
-
-	# Single extension case
-	if index == LENGTH:
-		return {default_ext: list(range(1, page_amount + 1))}
-
-	index += INT_SIZE # Move past extension separator
-
-	# ----------------DECOMPRESSION----------------
-	added_pages = set()
-	images = dict()
-
-	while index < LENGTH:
-		# Get extension name
-		ext = read_string()
+	def decode_numbers() -> list[int]:
+		nonlocal index
 
 		# Get starting page
 		prev_page = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
@@ -2093,10 +2075,8 @@ def decompress_images(data: bytes) -> dict:
 		numbers = [prev_page]
 
 		if index == LENGTH or data[index:index + INT_SIZE] == EXT_SEPARATOR:
-			images[ext] = numbers
-			added_pages.update(numbers)
 			index += INT_SIZE
-			continue
+			return numbers
 
 		# Get extension encoding
 		set_encoding(data[index] == 0x01)
@@ -2145,11 +2125,81 @@ def decompress_images(data: bytes) -> dict:
 				index += int_size
 				numbers.append(prev_page)
 
+		return numbers
+
+	# --------------------CONSTANTS--------------------
+	# Custom Bytes
+	SEPARATOR = EXT_SEPARATOR = separator = b'\x00'
+	INT_SIZE = int_size = 1
+	FUNCTION = b'\xFF'
+	RANGE_FUNCTION = b'\x01'
+	STEP_RANGE_FUNCTION = b'\x02'
+	# CONSEC_BYTES_FUNCTION = b'\x03'
+	STRUCT = struct_format = '>B'
+
+	# Stream constants
+	index = 0
+	LENGTH = len(data)
+
+	# STRUCTURE:
+	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
+	# (default extension) & (encoding type) & (page amount) |
+	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
+
+	# Get default extension
+	default_ext = read_string()
+
+	# Get encoding flag
+	ENCODING = data[index]
+	index += 1  # Move past encoding flag
+
+	if ENCODING == 0x02:
+		set_encoding()
+		STRUCT = struct_format
+		INT_SIZE = int_size
+		EXT_SEPARATOR = separator
+
+	# Get page amount
+	page_amount = struct.unpack(STRUCT, data[index:index + INT_SIZE])[0]
+	index += INT_SIZE
+
+	added_pages = set()
+	images = dict()
+	repetitive = False
+
+	# Single extension case
+	if index == LENGTH:
+		return {default_ext: list(range(1, page_amount + 1))}
+
+	# Check if pages are repetitive (next byte is 0xFF)
+	elif data[index] == 0xFF:
+		index += 1
+		numbers = decode_numbers()
+		added_pages = set(numbers)
+		images[default_ext] = numbers
+		repetitive = True
+
+	else:
+		index += INT_SIZE # Move past extension separator
+
+	# ----------------DECOMPRESSION----------------
+
+	while index < LENGTH:
+		# Get extension name
+		ext = read_string()
+
+		numbers = decode_numbers()
 		images[ext] = numbers
 		added_pages.update(numbers)
 		index += INT_SIZE  # Move past separator
 
 	# Fill default extension pages
-	images[default_ext] = list(set(range(1, page_amount + 1)) - added_pages)
+	if not repetitive:
+		images[default_ext] = []
+
+	images[default_ext].extend(set(range(1, page_amount + 1)) - added_pages)
+
+	if repetitive:
+		images[default_ext].sort()
 
 	return images
