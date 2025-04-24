@@ -121,11 +121,31 @@ def test_anim():
 
 	print('Was there text before????')
 
-if __name__ == '__main__':
-	asyncio.run(test_aio(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
-	asyncio.run(test_MC_Versions())
+def test_page_comp():
+	i1 = {
+		'jpg': [1]
+	}
+	i2 = {
+		'jpg': list(range(1, 13, 2)), # 1 - 11
+		'png': list(range(2, 13, 2)), # 2 - 12
+		'gif': list(range(13, 151)) # 13 - 150
+	}
 
+	ci1 = compress_images(i1)
+	ci2 = compress_images(i2, repetitive = True)
+
+	di1 = decompress_images(ci1)
+	di2 = decompress_images(ci2)
+	assert di1 == i1, 'Failed to compress single extension!'
+	assert i2.keys() == di2.keys() and all(i2[k] == di2[k] for k in i2.keys()), 'Decompressed images do not match original images!'
+	print('\nImage compression and decompression test passed\n')
+
+if __name__ == '__main__':
 	test_num()
 	test_compress()
 	test_decompress()
 	test_anim()
+	test_page_comp()
+
+	asyncio.run(test_MC_Versions())
+	asyncio.run(test_aio(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))

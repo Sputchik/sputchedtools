@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.10'
+__version__ = '0.35.11'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -2077,7 +2077,6 @@ def decompress_images(data: bytes) -> dict:
 		numbers = [prev_page]
 
 		if index == LENGTH or data[index:index + INT_SIZE] == EXT_SEPARATOR:
-			index += INT_SIZE
 			return numbers
 
 		# Get extension encoding
@@ -2181,8 +2180,7 @@ def decompress_images(data: bytes) -> dict:
 		images[default_ext] = numbers
 		repetitive = True
 
-	else:
-		index += INT_SIZE # Move past extension separator
+	index += INT_SIZE  # Move past extension separator
 
 	# ----------------DECOMPRESSION----------------
 
