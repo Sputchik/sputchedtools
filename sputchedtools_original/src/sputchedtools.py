@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.9'
+__version__ = '0.35.10'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -1382,10 +1382,11 @@ class num:
 		zeroes = '0' * i
 		decim = decim.rstrip('0')
 
-		if round_decimals and len(decim) > i + decimals + 2:
-			round_part = decim[:decimals] + '.' + decim[decimals:]
-			after_zeroes = str(round(float(round_part)))
-			decim = zeroes + after_zeroes
+		if round_decimals and len(decim) >= i + decimals + 1:
+			round_part = decim[i:i + decimals] + '.' + decim[i + decimals : len(decim)]
+			rounded = str(round(float(round_part)))
+			# print(round_part, rounded)
+			decim = zeroes + rounded
 
 		else:
 			decim = zeroes + decim[i:i + decimals]
@@ -1393,6 +1394,7 @@ class num:
 		return f'{number}.{decim}'
 
 	decim = decim_round
+	# print(decim_round(0.00000000485992, 3))
 
 	def nicify(value: int) -> int:
 		"""Converts numbers: 1234 -> 1200, 278 -> 250, 399 -> 300, 478 -> 400 etc."""
