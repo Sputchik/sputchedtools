@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.12'
+__version__ = '0.35.13'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -128,10 +128,7 @@ class Timer:
 		self.last_lap = now
 
 	@classmethod
-	def format_output(self, seconds: Number, fmt: Optional[str] = None) -> str:
-		"""If not an instance, specify `fmt`"""
-
-		fmt = fmt or self.fmt
+	def format_output(cls, seconds: Number, fmt: str) -> str:
 
 		# Handle auto format first
 		if '%a' in fmt:
@@ -148,7 +145,7 @@ class Timer:
 			fmt = fmt.replace('%a', f'{num.decim_round(val)}{unit}', 1)
 
 		# Handle remaining formats
-		for mp, unit in zip([1, 1000, 1000000], self.time_fmts):
+		for mp, unit in zip([1, 1000, 1000000], cls.time_fmts):
 			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}", 1)
 
 		return fmt
@@ -158,7 +155,7 @@ class Timer:
 		self.diff = end_time - self.start_time
 
 		if self.fmt and self.echo:
-			print(self.format_output(self.diff))
+			print(self.format_output(self.diff, self.fmt))
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
