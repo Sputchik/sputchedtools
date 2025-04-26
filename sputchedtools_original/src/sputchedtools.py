@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.11'
+__version__ = '0.35.12'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -88,6 +88,9 @@ class TimerLap:
 		return f'[{self.name}] {self.diff}s'
 
 class Timer:
+	time_fmts = ['s', 'ms', 'us']
+	diff: float
+
 	"""
 	Code execution Timer
 
@@ -102,19 +105,21 @@ class Timer:
 	def __init__(
 		self,
 		fmt: Union[Formattable, Literal[False]] = "Taken time: %a",
-		add_unit: bool = True
+		echo: bool = True,
+		time_fmts: Optional[list[str]] = None,
 	):
 
 		from time import perf_counter
 
 		self.time = perf_counter
 		self.fmt = fmt
-		self.add_unit = add_unit
-		self.time_fmts = ['s', 'ms', 'us']
+		self.echo = echo
 		self.laps: list[TimerLap] = []
+		if time_fmts:
+			self.time_fmts = time_fmts
 
 	def __enter__(self) -> 'Timer':
-		self._start_time = self.last_lap = self.time()
+		self.start_time = self.last_lap = self.time()
 		return self
 
 	def lap(self, name: str = None):
@@ -122,8 +127,11 @@ class Timer:
 		self.laps.append(TimerLap(self.last_lap, now, name))
 		self.last_lap = now
 
-	def format_output(self, seconds: Number) -> str:
-		fmt = self.fmt
+	@classmethod
+	def format_output(self, seconds: Number, fmt: Optional[str] = None) -> str:
+		"""If not an instance, specify `fmt`"""
+
+		fmt = fmt or self.fmt
 
 		# Handle auto format first
 		if '%a' in fmt:
@@ -136,19 +144,20 @@ class Timer:
 			else:
 				val *= 1000000
 				unit = 'us'
+
 			fmt = fmt.replace('%a', f'{num.decim_round(val)}{unit}', 1)
 
 		# Handle remaining formats
 		for mp, unit in zip([1, 1000, 1000000], self.time_fmts):
-			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}" if self.add_unit else '', 1)
+			fmt = fmt.replace(f"%{unit}", f"{num.decim_round(seconds * mp)}{unit}", 1)
 
 		return fmt
 
 	def __exit__(self, *exc):
 		end_time = self.time()
-		self.diff = end_time - self._start_time
+		self.diff = end_time - self.start_time
 
-		if self.fmt:
+		if self.fmt and self.echo:
 			print(self.format_output(self.diff))
 
 	async def __aenter__(self) -> 'Timer':
