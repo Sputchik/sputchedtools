@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.35.13'
+__version__ = '0.36.0'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -49,8 +49,8 @@ class JSON:
 			self.BYTE_SUFFIX = ''
 			self.DUMP_WRITE = 'w'
 
-			def ordumps(obj: dict, indent: bool = False, **kwargs) -> str:
-				return json.dumps(obj, indent = 2 if indent else None, **kwargs)
+			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
+				return json.dumps(obj, indent = 2 if indent else None, **kwargs).encode('utf-8')
 			def orloads(data: str, **kwargs) -> dict:
 				return json.loads(data, **kwargs)
 
@@ -81,15 +81,16 @@ class TimerLap:
 	):
 		self.start = start
 		self.end = end
-		self.diff = end - start
+		self.diff = self.elapsed = end - start
 		self.name = name
 
-	def __str__(self):
-		return f'[{self.name}] {self.diff}s'
+	def __repr__(self) -> str:
+		return f'TimerLap(start={self.start}, end={self.end}, diff={self.diff}, name={self.name})'
 
 class Timer:
 	time_fmts = ['s', 'ms', 'us']
 	diff: float
+	elapsed: float
 
 	"""
 	Code execution Timer
@@ -150,12 +151,15 @@ class Timer:
 
 		return fmt
 
+	def format(self) -> str:
+		return self.format_output(self.diff, self.fmt)
+
 	def __exit__(self, *exc):
 		end_time = self.time()
-		self.diff = end_time - self.start_time
+		self.diff = self.elapsed = end_time - self.start_time
 
 		if self.fmt and self.echo:
-			print(self.format_output(self.diff, self.fmt))
+			print(self.format())
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
@@ -1433,8 +1437,10 @@ class num:
 		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
 
-		"""num.shorten() wrapper with file size suffixes"""
+		"""num.shorten() wrapper with byte size suffixes"""
 		return num.shorten(value, decimals, round_decimals, precission, suffixes or num.fileSize_suffixes)
+
+	bss = bytesize_shorten
 
 	@staticmethod
 	def beautify(value: Union[int, float], decimals: int = -1, round_decimals: bool = False, precission: int = 14) -> str:
