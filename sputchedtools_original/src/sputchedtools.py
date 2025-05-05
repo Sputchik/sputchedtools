@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.36.0'
+__version__ = '0.36.2'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -45,9 +45,9 @@ class JSON:
 
 		except ImportError:
 			self.orjson = None
-			self.DUMP_TYPE = str
-			self.BYTE_SUFFIX = ''
-			self.DUMP_WRITE = 'w'
+			self.DUMP_TYPE = bytes
+			self.BYTE_SUFFIX = 'b'
+			self.DUMP_WRITE = 'wb'
 
 			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
 				return json.dumps(obj, indent = 2 if indent else None, **kwargs).encode('utf-8')
@@ -1354,7 +1354,7 @@ class num:
 
 		if value.is_integer():
 			# Wether to remove trailing `.0` from received float
-			if decimals != 0:
+			if round_decimals or decimals == 0:
 				return str(value)
 
 			return str(int(value))
