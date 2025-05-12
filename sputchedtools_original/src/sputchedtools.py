@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.36.2'
+__version__ = '0.36.4'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -545,11 +545,13 @@ class Config:
 		is_rowed = isinstance(options[0], list)
 		if is_rowed:
 			self.options = options
-			self.page_amount = sum(len(row) for row in options)
+			self.page_amount = len(options)
+			self.option_amount = sum(len(row) for row in options)
 
 		else:
-			self.page_amount = len(options)
-			self.options = [options[i:i + per_page] for i in range(0, self.page_amount, per_page)]
+			self.option_amount = len(options)
+			self.page_amount = self.option_amount // per_page
+			self.options = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
 
 		self.orig_options = options
 
@@ -576,9 +578,11 @@ class Config:
 		cursor_pos = 0
 		editing = False
 		new_value = ''
+		EXIT_KEYS = {b'\x03', b'\x04', b'q', b'\x1b'}
 
 		while True:
 			page = self.index + 1
+			offset = 1 if page == 1 else page * self.per_page
 			options = self.options[self.index]
 			options_repr = []
 
@@ -599,7 +603,7 @@ class Config:
 				else:
 					value = ''
 
-				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.description}{value}')
+				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.description}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -680,7 +684,7 @@ class Config:
 					cursor_pos = len(new_value)
 
 			elif key == b'p':
-				inp = input('Page: ')
+				inp = input('\nPage: ')
 
 				try:
 					page = int(inp) - 1
@@ -714,7 +718,25 @@ class Config:
 				self.add_page(1)
 				selected_option = 0
 
-			elif key == b'q' or key == b'\x1b':  # Quit
+			elif key == b' ':  # Space - toggle selected if toggleable
+				option = options[selected_option]
+				if option.callback == Callbacks.toggle:
+					option.value = not option.value
+
+			elif key == b'\x06': # Ctrl+F - search options' values
+				print("\nSearch: ", end='', flush=True)
+				term = input().lower()
+				for pg_idx, page in enumerate(self.options):
+					for opt_idx, opt in enumerate(page):
+						if term in opt.description.lower():
+							self.index = pg_idx
+							selected_option = opt_idx
+							break
+					else:
+						continue
+					break
+
+			elif key in EXIT_KEYS:  # Quit
 				break
 
 		# Return all options
@@ -752,9 +774,11 @@ class Config:
 		editing = False
 		new_value = ''
 		cursor_pos = 0
+		EXIT_KEYS = {'\x03', '\x04', 'q', '\x1b'}
 
 		while True:
 			page = self.index + 1
+			offset = 1 if page == 1 else page * self.per_page
 			options = self.options[self.index]
 			options_repr = []
 
@@ -775,7 +799,7 @@ class Config:
 				else:
 					value = ''
 
-				options_repr.append(f'{prefix} [{i + 1}]{toggle} {option.description}{value}')
+				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.description}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			options_repr += f'\n\nPage {page}/{self.page_amount}'
@@ -845,9 +869,6 @@ class Config:
 					new_value = option.value
 					cursor_pos = len(new_value)
 
-			elif key in ('q', '\x1b'):  # q or Escape
-				break
-
 			elif key == 'p':  # Page select
 				print("\nPage: ", end='', flush=True)
 				try:
@@ -875,6 +896,27 @@ class Config:
 				self.add_page(-1)
 			elif key == 'd':  # Alternative right
 				self.add_page(1)
+
+			elif key == ' ':  # Space - toggle selected if toggleable
+				option = options[selected_option]
+				if option.callback == Callbacks.toggle:
+					option.value = not option.value
+
+			elif key == '\x06':  # Ctrl+F - search options' values
+				print("\nSearch: ", end='', flush=True)
+				term = input().lower()
+				for pg_idx, page in enumerate(self.options):
+					for opt_idx, opt in enumerate(page):
+						if term in opt.description.lower():
+							self.index = pg_idx
+							selected_option = opt_idx
+							break
+					else:
+						continue
+					break
+
+			elif key in EXIT_KEYS:  # q or Escape
+				break
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
@@ -935,6 +977,18 @@ class Config:
 
 			elif inp == 'q':
 				break
+
+			elif inp == 'f':
+				print("Search: ", end='', flush=True)
+				term = input().lower()
+				for pg_idx, page in enumerate(self.options):
+					for opt in page:
+						if term in opt.description.lower():
+							self.index = pg_idx
+							break
+					else:
+						continue
+					break
 
 		# Return all options
 		return {option.id: option.value for option in self.orig_options}
@@ -1354,10 +1408,10 @@ class num:
 
 		if value.is_integer():
 			# Wether to remove trailing `.0` from received float
-			if round_decimals or decimals == 0:
-				return str(value)
+			if round_decimals or decimals <= 0:
+				return str(int(value))
 
-			return str(int(value))
+			return str(value)
 
 		# Convert float into string with given <percission>
 		str_val = format(value, f'.{precission}f')
