@@ -17,7 +17,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.36.4'
+__version__ = '0.36.6'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -546,11 +546,11 @@ class Config:
 		if is_rowed:
 			self.options = options
 			self.page_amount = len(options)
-			self.option_amount = sum(len(row) for row in options)
+			self.option_amount = sum(len(row) for row in options) or 1
 
 		else:
 			self.option_amount = len(options)
-			self.page_amount = self.option_amount // per_page
+			self.page_amount = self.option_amount // per_page or 1
 			self.options = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
 
 		self.orig_options = options
@@ -1167,11 +1167,11 @@ class aio:
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
-		filter: Callable[[Any], Union[bool, None]] = lambda response: getattr(response, 'status', getattr(response, 'status_code')) == 200,
+		filter: Callable[[Any], Union[bool, None]] = lambda r: getattr(r, 'status', getattr(r, 'status_code')) == 200,
 		interval: Union[float, None] = 5.0,
 		retries: int = -1,
 		**kwargs
-	) -> Union[Any, list[Any], RequestError]:
+	) -> Union[Any, list[Any], None]:
 
 		if interval:
 			import asyncio
@@ -1186,11 +1186,8 @@ class aio:
 				**kwargs
 			)
 
-			if items:
+			if not isinstance(items, RequestError):
 				return items
-
-			elif items is None:
-				return
 
 			elif interval and retries != 0:
 				await asyncio.sleep(interval)
