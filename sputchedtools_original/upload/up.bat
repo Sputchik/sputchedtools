@@ -10,17 +10,11 @@ cd "%~dp0../"
 :: set CYTHONIZE=
 
 :: Build regular wheel
-python -m build -wn --no-isolation
-
-:: Build source distribution
-python -m build -sn
+python -m build -wnsx
 
 echo.
-choice /N /M "Upload? [Y/N]: "
-if %ErrorLevel% == 1 (
-	twine upload dist/*
-	rmdir /S /Q dist
-)
+twine upload dist/*
+rmdir /S /Q dist
 
 for /D %%G in (".\src\*egg-info") do rmdir /S /Q "%%G"
 rmdir /S /Q  build

@@ -19,19 +19,25 @@ num_test_iters = 15
 _compress_file = 'sputchedtools.py'
 compress_folder = '__pycache__'
 num.suffixes = num.fileSize_suffixes
-sl = 0.005
-start, end = 20, 100
+sl = 0.001
+start, end = 20, 80
 
 @pytest.mark.asyncio
 async def test_aio(**kwargs):
 	response = await aio.get(
 		url,
+		toreturn = 'response',
 		**kwargs
 	)
 
-	for data in ProgressBar(response, text = 'Processing response data...'):
+	attrs = [attr for attr in dir(response) if not attr.startswith('_')]
+	attrs.sort()
+	for data in ProgressBar(attrs, text = 'Processing response data...'):
 		...
 		# print('\n', data if not isinstance(data, str) else data[:30], sep = '')
+
+	literals = ', '.join(f"'{attr}'" for attr in attrs)
+	print(f'ReturnTypes = Literal[{literals}]')
 
 def test_num():
 	num.suffixes = ['', 'K', 'M', 'B', 'T', 1000]
@@ -128,7 +134,7 @@ def test_page_comp():
 	i2 = {
 		'jpg': list(range(1, 13, 2)), # 1 - 11
 		'png': list(range(2, 13, 2)), # 2 - 12
-		'gif': list(range(13, 151)) # 13 - 150
+		'gif': list(range(10, 151)) # 10 - 150
 	}
 
 	ci1 = compress_images(i1)
@@ -144,8 +150,8 @@ if __name__ == '__main__':
 	test_num()
 	test_compress()
 	test_decompress()
-	test_anim()
 	test_page_comp()
+	test_anim()
 
 	asyncio.run(test_MC_Versions())
-	asyncio.run(test_aio(toreturn = [k for k in dir(aiohttp.ClientResponse) if not k.startswith('_')], httpx = True))
+	asyncio.run(test_aio())

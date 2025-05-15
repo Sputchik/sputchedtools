@@ -1,23 +1,22 @@
-from typing import Coroutine, Literal, Iterable, Iterator, Any, Callable, Union, Optional, IO, NewType, TYPE_CHECKING, Protocol, TypeVar
+from typing import Coroutine, Literal, Iterable, Iterator, Any, Callable, Union, Optional, IO, TYPE_CHECKING, Protocol, TypeVar
 
 if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
 
-ReturnTypes = Literal['ATTRS', 'charset', 'close', 'closed', 'connection', 'content', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'json', 'links', 'ok', 'raise_for_status', 'raw_headers', 'read', 'real_url', 'reason', 'release', 'request_info', 'start', 'status', 'text', 'url', 'url_obj', 'version', 'wait_for_close']
+ReturnTypes = Literal['response', 'content', 'text', 'json', 'read', 'status', 'real_url', 'ATTRS', 'charset', 'close', 'closed', 'connection', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'links', 'method', 'ok', 'raise_for_status', 'raw_headers', 'reason', 'release', 'request_info', 'start', 'url', 'url_obj', 'version', 'wait_for_close']
 Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
-Formattable = NewType('Formattable', str)
-ActionModes = Literal['read', 'write']
+Formattable = str
+ActionModes = Literal['write', 'read']
 Number = Union[int, float]
 
 T = TypeVar('T')
 class Falsy(Protocol[T]):
-	def __bool__(self) -> bool:
-		return False
+	def __bool__(self) -> bool: ...
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.36.6'
+__version__ = '0.37.0'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -28,12 +27,11 @@ class JSON:
 	"""
 
 	def __init__(self):
+		import json
+
 		try:
 			import orjson
 			self.orjson = orjson
-			self.DUMP_TYPE = bytes
-			self.BYTE_SUFFIX = 'b'
-			self.DUMP_WRITE = 'wb'
 
 			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
 				return orjson.dumps(obj, option = orjson.OPT_INDENT_2 if indent else None, **kwargs)
@@ -45,9 +43,6 @@ class JSON:
 
 		except ImportError:
 			self.orjson = None
-			self.DUMP_TYPE = bytes
-			self.BYTE_SUFFIX = 'b'
-			self.DUMP_WRITE = 'wb'
 
 			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
 				return json.dumps(obj, indent = 2 if indent else None, **kwargs).encode('utf-8')
@@ -57,8 +52,6 @@ class JSON:
 			self.ordumps = ordumps
 			self.orloads = orloads
 
-		import json
-		self.DUMP_MODE = self.BYTE_SUFFIX # Compatibility with older versions
 		self.json = json
 		self.dumps = json.dumps
 		self.loads = json.loads
@@ -105,7 +98,7 @@ class Timer:
 
 	def __init__(
 		self,
-		fmt: Union[Formattable, Literal[False]] = "Taken time: %a",
+		fmt: Optional[Formattable] = "Taken time: %a",
 		echo: bool = True,
 		time_fmts: Optional[list[str]] = None,
 	):
@@ -129,7 +122,7 @@ class Timer:
 		self.last_lap = now
 
 	@classmethod
-	def format_output(cls, seconds: Number, fmt: str) -> str:
+	def format_output(cls, seconds: Number, fmt: Formattable = '%a') -> str:
 
 		# Handle auto format first
 		if '%a' in fmt:
@@ -155,8 +148,8 @@ class Timer:
 		return self.format_output(self.diff, self.fmt)
 
 	def __exit__(self, *exc):
-		end_time = self.time()
-		self.diff = self.elapsed = end_time - self.start_time
+		self.end_time = self.time()
+		self.diff = self.elapsed = self.end_time - self.start_time
 
 		if self.fmt and self.echo:
 			print(self.format())
@@ -166,6 +159,12 @@ class Timer:
 
 	async def __aexit__(self, *exc):
 		self.__exit__(*exc)
+
+class QTimer(Timer):
+	"""Quiet Timer variant, with `fmt` set to '%a' by default"""
+
+	def __init__(self, fmt: Formattable = "%a"):
+		super().__init__(fmt, False, None)
 
 class NewLiner:
 	"""
@@ -188,30 +187,28 @@ class ProgressBar:
 		task_amount: Optional[int] = None,
 	):
 
-		if iterator and not isinstance(iterator, Iterator):
-			if not hasattr(iterator, '__iter__'):
-				raise TypeError(f"Provided object is not Iterable\n\nType: {type(iterator)}\nAttrs: {dir(iterator)}")
+		if iterator:
+			if isinstance(iterator, Iterator):
+				self.iterator = iterator
 
-			self.iterator = iterator.__iter__()
+			elif not hasattr(iterator, '__iter__'):
+				raise TypeError(f"Provided object is not Iterable, Type: {type(iterator)}")
+
+			else:
+				self.iterator = iterator.__iter__()
 
 		else:
-			self.iterator = iterator
+			self.iterator = None
 
 		if task_amount is None:
-			if iterator and not hasattr(iterator, '__len__'):
-				raise TypeError(f"You didn't provide task_amount for Iterator or object with no __len__ attribute")
+			if not hasattr(iterator, '__len__'):
+				raise TypeError(f"You didn't provide task_amount for Iterator with no __len__ attribute")
 
-			elif iterator:
-				self.task_amount = iterator.__len__()
+			self.task_amount = iterator.__len__()
 
 		else:
 			self.task_amount = task_amount
 
-		import asyncio
-		from sys import stdout
-
-		self.asyncio = asyncio
-		self.flush = lambda k: stdout.write(k); stdout.flush()
 		self._text = text
 		self.completed_tasks = 0
 		self.final_text = final_text
@@ -221,10 +218,10 @@ class ProgressBar:
 		return self._text
 
 	@text.setter
-	def text(self, value: str):
-		val_len = len(value)
-		text_len = len(self.__text)
-		self._text = value + ' ' * (text_len - val_len if text_len > val_len else 0)
+	def text(self, new_text: str):
+		new_text_len = len(new_text)
+		old_text_len = len(self._text)
+		self._text = new_text + ' ' * (old_text_len - new_text_len if old_text_len > new_text_len else 0)
 
 	def __iter__(self) -> 'ProgressBar':
 		self.update(0)
@@ -241,7 +238,7 @@ class ProgressBar:
 
 	async def __aiter__(self) -> 'ProgressBar':
 		if not hasattr(self, 'iterator'):
-			raise ValueError("You didn't specify coroutine iterator")
+			raise ValueError("You didn't specify coroutine iterator. Do: `async for i in ProgressBar(iterator, ...)`")
 
 		self.update(0)
 		return self
@@ -266,29 +263,17 @@ class ProgressBar:
 
 	def update(self, by: int = 1):
 		self.completed_tasks += by
-		self.print_progress()
-
-	def print_progress(self):
-		self.flush(f'\r{self._text} {self.completed_tasks}/{self.task_amount}')
+		print(f'\r{self._text} {self.completed_tasks}/{self.task_amount}', end = '', flush = True)
 
 	async def gather(self, tasks: Optional[Iterable[Coroutine]] = None) -> list[Any]:
-		self.update(0)
-		tasks = tasks or self.iterator
-		assert tasks, "You didn't provide any tasks"
-		results = []
-
-		for task in self.asyncio.as_completed(tasks):
-			result = await task
-			self.update()
-			results.append(result)
-
-		self.finish()
-		return results
+		return [r async for r in self.as_completed(tasks)]
 
 	async def as_completed(self, tasks: Optional[Iterable[Coroutine]] = None):
-		self.update(0)
 		tasks = tasks or self.iterator
-		assert tasks, "You didn't provide any tasks"
+		if not tasks:
+			raise ValueError("You didn't provide any tasks")
+
+		self.update(0)
 
 		for task in self.asyncio.as_completed(tasks):
 			result = await task
@@ -298,8 +283,8 @@ class ProgressBar:
 		self.finish()
 
 	def finish(self):
-		self.finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
-		self.flush(self.finish_message)
+		finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
+		print(finish_message, flush = True)
 
 	def __exit__(self, *exc):
 		self.finish()
@@ -324,9 +309,9 @@ class Anim:
 		self,
 		# Formatting stuff
 		prepend_text: str = '', append_text: str = '',
-		text_format: str = '{prepend} {char} {append}',
+		text_format: str = '{prepend} {char}{append}',
 		# This will be appended to the end
-		do_timer: Union[str, None] = None, # '(%a)',
+		do_timer: Union[Formattable, None] = None, # '(%a)',
 
 		delay: float = 0.08,
 		nap_time: float = 0.01,
@@ -471,7 +456,7 @@ class Anim:
 			return base + self.get_line()
 
 	def anim(self):
-		with Timer(False) as t:
+		with QTimer() as t:
 			while not self.done:
 				for self.char in self.chars:
 					if self.done: break
@@ -503,57 +488,61 @@ class Callbacks:
 	direct = 1
 	toggle = 2
 	callable = 3
+	scrollable = 4
+	instant = 5
 
 class Option:
 	def __init__(
 		self,
-		description: str = '',
-		value: str = '',
+		title: str = 'Option',
 		id: Any = None,
+		value: str = '',
 		callback: Callbacks = Callbacks.direct, # Pending rename to `type`
-		values: Optional[list[str]] = None
+		scrollable_values: Optional[list[str]] = None
 	):
 		"""
-		name: str - Option name
-		value: str - Option default value
-		callback: Callbacks - Option callback type
-			direct: 1 - Direct in-console editing
-			toggle: 2 - Toggle option. Note that `value` won't be displayed and is bool
-			callable: 3 - Custom callback function. Receives option name or index (configurable in `Config`), returned value will be set as option value
+		Args:
+			name: str - Option name
+			value: str - Option default value
+			callback: Callbacks - Option callback type
+				direct: 1 - Direct in-terminal editing. `value` acts as editable value
+				toggle: 2 - Toggle option. `value` acts as boolean value
+				callable: 3 - Custom callback function. `value` acts as function, which receives `Option` as argument. Can be useful for inner-configs
+				scrollable: 4 - Let's you scroll (left/right) through `selectable_values` list. `value` acts as current/selected value
+				instant: 5 - On any toggle key, Option.id is returned. Can be useful for quick option selection
 
-		values: list[str] - Option values
+			values: list[str] - Option values
+
 		"""
 
-		self.description = description
+		self.title = title
 		self.value = value
-		self.id = id or description # Option identifier
+		self.id = id or title # Option identifier
 		self.callback = callback
-		self.values = values
+		self.scrollable_values = scrollable_values
 
 		# Check if provided value exists in value list
-		if values and value not in values:
-			self.value = values[0]
+		if callback == Callbacks.scrollable and value not in scrollable_values:
+			self.value = scrollable_values[0]
 
 class Config:
 	def __init__(
 		self,
-		options: list[Union[Option, list[Option]]],
+		options: Union[list[Option], list[list[Option]]],
 		per_page: int = 9
 	):
 		self.per_page = per_page
 
 		is_rowed = isinstance(options[0], list)
 		if is_rowed:
-			self.options = options
+			self.options: list[list[Option]] = options
 			self.page_amount = len(options)
 			self.option_amount = sum(len(row) for row in options) or 1
 
 		else:
 			self.option_amount = len(options)
 			self.page_amount = self.option_amount // per_page or 1
-			self.options = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
-
-		self.orig_options = options
+			self.options: list[list[Option]] = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
 
 		from sys import platform
 		if 'win' in platform or 'nt' in platform:
@@ -579,6 +568,7 @@ class Config:
 		editing = False
 		new_value = ''
 		EXIT_KEYS = {b'\x03', b'\x04', b'q', b'\x1b'}
+		TOGGLE_KEYS = {b'\r', b' '}
 
 		while True:
 			page = self.index + 1
@@ -595,22 +585,21 @@ class Config:
 				else:
 					value = option.value
 
-				if option.values:
-					current_idx = option.values.index(option.value)
-					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.values) else ""}'
-				elif option.callback != Callbacks.toggle:
+				if option.callback == Callbacks.direct:
 					value = f' - {value}'
+				elif option.callback == Callbacks.scrollable:
+					current_idx = option.scrollable_values.index(option.value)
+					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.scrollable_values) else ""}'
 				else:
 					value = ''
 
-				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.description}{value}')
+				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			options_repr += f'\n\nPage {page}/{self.page_amount}'
-			print('\033[2J\033[H' + options_repr, flush = True, end = '')
+			print(f'\033[2J\033[H{options_repr}\n\nPage {page}/{self.page_amount}', flush = True, end = '')
+			key = msvcrt.getch()
 
 			if editing:
-				key = msvcrt.getch()
 				if key == b'\r':  # Enter - save value
 					options[selected_option].value = new_value
 					editing = False
@@ -644,40 +633,61 @@ class Config:
 
 				continue
 
-			key = msvcrt.getch()
-
-			if key == b'\xe0':  # Special keys prefix
+			elif key == b'\xe0':  # Special keys prefix
 				key = msvcrt.getch()
+
 				if key == b'H':  # Up arrow
 					selected_option = (selected_option - 1) % len(options)
 				elif key == b'P':  # Down arrow
 					selected_option = (selected_option + 1) % len(options)
+
 				elif key == b'M':  # Right arrow
 					option = options[selected_option]
-					if option.values:
-						current_idx = option.values.index(option.value)
-						option.value = option.values[(current_idx + 1) % len(option.values)]
+
+					if option.callback == Callbacks.scrollable:
+						current_idx = option.scrollable_values.index(option.value)
+						option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
 					else:
 						self.add_page(1)
 						selected_option = 0
+
 				elif key == b'K':  # Left arrow
 					option = options[selected_option]
-					if option.values:
-						current_idx = option.values.index(option.value)
-						option.value = option.values[(current_idx - 1) % len(option.values)]
+
+					if option.callback == Callbacks.scrollable:
+						current_idx = option.scrollable_values.index(option.value)
+						option.value = option.scrollable_values[(current_idx - 1) % len(option.scrollable_values)]
 					else:
 						self.add_page(-1)
 						selected_option = 0
 
-			elif key == b'\r':  # Enter key
+				elif key == b's':
+					option = options[selected_option]
+					if option.callback == Callbacks.scrollable:
+						option.value = option.scrollable_values[0]
+
+				elif key == b't':
+					option = options[selected_option]
+					if option.callback == Callbacks.scrollable:
+						option.value = option.scrollable_values[-1]
+
+			elif key in TOGGLE_KEYS: # Enter or Space
 				option = options[selected_option]
+
 				if option.callback == Callbacks.toggle:
 					option.value = not option.value
+
+				elif option.callback == Callbacks.instant:
+					print('\033[2J\033[H', flush = True, end = '')
+					return option.id
+
 				elif option.callback == Callbacks.callable:
-					option.callback(option.description)
-				elif option.values:
-					current_idx = option.values.index(option.value)
-					option.value = option.values[(current_idx + 1) % len(option.values)]
+					option.callback(option)
+
+				elif option.callback == Callbacks.scrollable:
+					current_idx = option.scrollable_values.index(option.value)
+					option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
+
 				else:
 					editing = True
 					new_value = option.value
@@ -718,17 +728,11 @@ class Config:
 				self.add_page(1)
 				selected_option = 0
 
-			elif key == b' ':  # Space - toggle selected if toggleable
-				option = options[selected_option]
-				if option.callback == Callbacks.toggle:
-					option.value = not option.value
-
 			elif key == b'\x06': # Ctrl+F - search options' values
-				print("\nSearch: ", end='', flush=True)
-				term = input().lower()
+				term = input('\nSearch: ').lower()
 				for pg_idx, page in enumerate(self.options):
 					for opt_idx, opt in enumerate(page):
-						if term in opt.description.lower():
+						if term in opt.title.lower():
 							self.index = pg_idx
 							selected_option = opt_idx
 							break
@@ -741,7 +745,7 @@ class Config:
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
-		return {option.id: option.value for option in self.orig_options}
+		return {option.id: option.value for page in self.options for option in page}
 
 	def unix_cli(self) -> dict[str, str]:
 
@@ -775,6 +779,7 @@ class Config:
 		new_value = ''
 		cursor_pos = 0
 		EXIT_KEYS = {'\x03', '\x04', 'q', '\x1b'}
+		TOGGLE_KEYS = {'\r', ' '}
 
 		while True:
 			page = self.index + 1
@@ -791,20 +796,18 @@ class Config:
 				else:
 					value = option.value
 
-				if option.values:
-					current_idx = option.values.index(option.value)
-					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.values) else ""}'
-				elif option.callback != Callbacks.toggle:
+				if option.callback == Callbacks.direct:
 					value = f' - {value}'
+				elif option.callback == Callbacks.scrollable:
+					current_idx = option.scrollable_values.index(option.value)
+					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.scrollable_values) else ""}'
 				else:
 					value = ''
 
-				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.description}{value}')
+				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			options_repr += f'\n\nPage {page}/{self.page_amount}'
-			print('\033[2J\033[H' + options_repr, flush = True)
-
+			print(f'\033[2J\033[H{options_repr}\n\nPage {page}/{self.page_amount}', flush = True, end = '')
 			key = getch()
 
 			if editing:
@@ -837,42 +840,46 @@ class Config:
 				selected_option = (selected_option + 1) % len(options)
 			elif key == '\x1b[C':  # Right arrow
 				option = options[selected_option]
-				if option.values:
-					current_idx = option.values.index(option.value)
-					option.value = option.values[(current_idx + 1) % len(option.values)]
+				if option.scrollable_values:
+					current_idx = option.scrollable_values.index(option.value)
+					option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
 				else:
 					self.add_page(1)
 					selected_option = 0
 			elif key == '\x1b[D':  # Left arrow
 				option = options[selected_option]
-				if option.values:
-					current_idx = option.values.index(option.value)
-					option.value = option.values[(current_idx - 1) % len(option.values)]
+				if option.scrollable_values:
+					current_idx = option.scrollable_values.index(option.value)
+					option.value = option.scrollable_values[(current_idx - 1) % len(option.scrollable_values)]
 				else:
 					self.add_page(-1)
 					selected_option = 0
 
-			elif key == '\r':  # Enter
+			elif key in TOGGLE_KEYS:  # Enter or Space
 				option = options[selected_option]
+
 				if option.callback == Callbacks.toggle:
 					option.value = not option.value
+
+				elif option.callback == Callbacks.instant:
+					print('\033[2J\033[H', flush = True, end = '')
+					return option.id
+
 				elif option.callback == Callbacks.callable:
-					if self.cbname:
-						option.callback(option.description)
-					else:
-						option.callback(self.index * self.per_page + selected_option)
-				elif option.values:
-					current_idx = option.values.index(option.value)
-					option.value = option.values[(current_idx + 1) % len(option.values)]
+					option.callback(option)
+
+				elif option.callback == Callbacks.scrollable:
+					current_idx = option.scrollable_values.index(option.value)
+					option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
+
 				else:
 					editing = True
 					new_value = option.value
 					cursor_pos = len(new_value)
 
 			elif key == 'p':  # Page select
-				print("\nPage: ", end='', flush=True)
 				try:
-					page = int(input()) - 1
+					page = int(input("\nPage: ")) - 1
 					self.set_page(page)
 					selected_option = 0
 				except ValueError:
@@ -897,17 +904,11 @@ class Config:
 			elif key == 'd':  # Alternative right
 				self.add_page(1)
 
-			elif key == ' ':  # Space - toggle selected if toggleable
-				option = options[selected_option]
-				if option.callback == Callbacks.toggle:
-					option.value = not option.value
-
 			elif key == '\x06':  # Ctrl+F - search options' values
-				print("\nSearch: ", end='', flush=True)
-				term = input().lower()
+				term = input('\nSearch: ').lower()
 				for pg_idx, page in enumerate(self.options):
 					for opt_idx, opt in enumerate(page):
-						if term in opt.description.lower():
+						if term in opt.title.lower():
 							self.index = pg_idx
 							selected_option = opt_idx
 							break
@@ -915,12 +916,21 @@ class Config:
 						continue
 					break
 
+			elif key == '\x1b[1;5D':  # Ctrl+←
+				option = options[selected_option]
+				if option.callback == Callbacks.scrollable:
+					option.value = option.scrollable_values[0]
+			elif key == '\x1b[1;5C':  # Ctrl+→
+				option = options[selected_option]
+				if option.callback == Callbacks.scrollable:
+					option.value = option.scrollable_values[-1]
+
 			elif key in EXIT_KEYS:  # q or Escape
 				break
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
-		return {option.id: option.value for option in self.orig_options}
+		return {option.id: option.value for page in self.options for option in page}
 
 	def any_cli(self) -> dict[str, str]:
 		self.index = 0
@@ -933,7 +943,7 @@ class Config:
 			for i, option in enumerate(options):
 				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
-				options_repr += (f'[{i + 1}]{toggle} {option.description}{value}\n')
+				options_repr += (f'[{i + 1}]{toggle} {option.title}{value}\n')
 
 			options_repr += f'\nPage {page}/{self.page_amount}'
 			options_repr += '\nOption: '
@@ -945,15 +955,22 @@ class Config:
 				num = int(inp) - 1
 				if 0 <= num < len(options):
 					option = options[num]
+
 					if option.callback == Callbacks.toggle:
 						option.value = not option.value
+
 					elif option.callback == Callbacks.callable:
-						if self.cbname:
-							option.callback(option.description)
-						else:
-							option.callback(self.index * self.per_page + num)
-					elif option.callback == Callbacks.direct:
-						new_value = input(f"New value for {option.description}: ")
+						option.callback(option)
+
+					elif option.callback == Callbacks.instant:
+						return option.id
+
+					elif option.callback == Callbacks.scrollable:
+						current_idx = option.scrollable_values.index(option.value)
+						option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
+
+					else:
+						new_value = input(f"New value for {option.title}: ")
 						option.value = new_value
 
 			elif inp == 'p':
@@ -979,11 +996,10 @@ class Config:
 				break
 
 			elif inp == 'f':
-				print("Search: ", end='', flush=True)
-				term = input().lower()
+				term = input('Search: ').lower()
 				for pg_idx, page in enumerate(self.options):
 					for opt in page:
-						if term in opt.description.lower():
+						if term in opt.title.lower():
 							self.index = pg_idx
 							break
 					else:
@@ -991,7 +1007,7 @@ class Config:
 					break
 
 		# Return all options
-		return {option.id: option.value for option in self.orig_options}
+		return {option.id: option.value for page in self.options for option in page}
 
 class RequestError(Exception):
 	def __init__(self, exc: Exception, return_items_len: int = 1):
@@ -1078,6 +1094,7 @@ class aio:
 				import aiohttp
 				ses = aiohttp.ClientSession()
 
+		_toreturn = toreturn
 		if isinstance(toreturn, str):
 			toreturn = toreturn.split('+')
 
@@ -1085,6 +1102,8 @@ class aio:
 
 		try:
 			response = await ses.request(method, url, **kwargs)
+			if _toreturn == 'response':
+				return response
 
 		except Exception as e:
 			if not session:
@@ -1480,7 +1499,7 @@ class num:
 
 		return int(max_tick)
 
-	def bytesize_shorten(
+	def bss(
 		value: Union[int, float],
 		decimals: int = -1,
 		round_decimals: bool = False,
@@ -1491,7 +1510,7 @@ class num:
 		"""num.shorten() wrapper with byte size suffixes"""
 		return num.shorten(value, decimals, round_decimals, precission, suffixes or num.fileSize_suffixes)
 
-	bss = bytesize_shorten
+	bytesize_shorten = bss
 
 	@staticmethod
 	def beautify(value: Union[int, float], decimals: int = -1, round_decimals: bool = False, precission: int = 14) -> str:
@@ -1627,7 +1646,7 @@ def enhance_loop() -> bool:
 	except ImportError:
 		return False
 
-def setup_logger(name: str, dir: str = 'logs/', clear_file: bool = False):
+def setup_logger(name: str, clear_file: bool = False, dir: str = 'logs/'):
 	"""
 	Sets up minimalistic logger with file (all levels) and console (>debug) handlers
 	Using queue.Queue to exclude logging from main thread
@@ -2098,7 +2117,7 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 
 	return bytes(data)
 
-def decompress_images(data: bytes) -> dict:
+def decompress_images(data: bytes) -> dict[str, list[int]]:
 	import struct
 
 	# ----------------------METHODS----------------------
