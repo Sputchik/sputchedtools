@@ -12,22 +12,21 @@ pip install sputchedtools
 
 # CLI
 
-### Timer (1), NewLiner (2)
+### Timer/QTimer (1), NewLiner (2)
 Use as context manager to (1) measure code execution time, with formatting and lap support, (2) print new line before and after code block
 
 ```python
-with NewLiner(), Timer('Taken time: %s %ms %us'):
+with NewLiner(), Timer('Taken time: %s %ms %us. Best variant: %a'):
 	...
 
-async with Timer(False) as t: # Do not echo anything
-	...
-	lap1: float = t.lap("some action")
+with QTimer() as t: # won't print anything
+	t.lap()
 
-print(*t.laps, t.diff, sep = '\n')
+print(*t.laps, t.diff == t.elapsed, sep = '\n')
 ```
 
 ### ProgressBar
-Async-supported very simple executed task counter
+Async-supported, very simple, executed task counter
 
 ```python
 for i in ProgressBar(
@@ -55,6 +54,7 @@ with Anim(
 	# a.set_text()
 	# a.set_chars()
 	__import__('time').sleep(1)
+	a.update()
 ```
 
 ### Config, Option
@@ -63,21 +63,18 @@ Define option list and let user modify them via terminal
 ```python
 options = [
 	Option(
-		name = f'Set {i}',
-		value: str = str(i),
+		title = f'Your favorite hot meal: ',
+		value = '',
 		callback = Callbacks.direct # In-terminal edit
-		# callback = Callbacks.toggle # Simple toggle
-		# values = ('val1', 'val2') # Iterates through it on arrow/enter key
+		# Read Option docstring for more advanced usage
 	)
-	for i in range(9)
 ]
 
 # Results received as OptionName: Value
-results: dict[str] = Config(
+results: dict[str, str] = Config(
 	options = options,
-	per_page = 9, # Let's you navigate through options with 1-9 keys
-	callback_option_name = True # Wether to pass option name or its index to custom option callbacks
-).win_cli()
+	per_page = 9, # Let's you navigate through options with 1-9 keys (if < 10)
+).cli()
 ```
 
 # Utilities
@@ -106,8 +103,9 @@ async def main():
 		niquests = False,
 		# **request_args: headers, params, etc.
 	)
-	if not response:
-		raise response # Is 'RequestError' instance
+	if not response: # The only way this can be evaluated is by an error during request. Here, response is `RequestError` object with __bool__ returning False
+		raise response
+
 	text = response[0]
 	await aio.open(
 		file = 'response.txt',
@@ -138,8 +136,8 @@ file_size = num.shorten(
 num.decim_round(
 	value = 0.000000004801,
 	decimals = 4, # How many to leave
-	round_if_num_gt_1 = True,
-	precission = 20, # format(value, f'.{percission}')
+	round_decimals = True,
+	precission = 14,
 	# decims = [...] if decimals argument is -1, this can be passed to change how many decimals to leave: default list is [1000, 100, 10, 5], List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
 )
 ```
