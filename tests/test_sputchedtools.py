@@ -9,7 +9,7 @@ try:
 	from src.sputchedtools import *
 except ImportError:
 	import sys
-	sys.path.append('../src')
+	# sys.path.append('../src')
 	from sputchedtools import *
 
 enhance_loop()
@@ -143,7 +143,7 @@ def test_page_comp():
 	di1 = decompress_images(ci1)
 	di2 = decompress_images(ci2)
 	assert di1 == i1, 'Failed to compress single extension!'
-	assert i2.keys() == di2.keys() and all(i2[k] == di2[k] for k in i2.keys()), 'Decompressed images do not match original images!'
+	assert i2.keys() == di2.keys() and all(i2[k] == di2[k] for k in i2.keys()), f'Decompressed images do not match original images!\nCompressed: {ci2}\nDecompressed: {di2}'
 	print('\nImage compression and decompression test passed\n')
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.1'
+__version__ = '0.37.4'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -570,6 +570,7 @@ class Config:
 		new_value = ''
 		EXIT_KEYS = {b'\x03', b'\x04', b'q', b'\x1b'}
 		TOGGLE_KEYS = {b'\r', b' '}
+		SPECIAL_KEYS = {b'\xe0', b'\x00'}
 
 		while True:
 			page = self.index + 1
@@ -609,7 +610,7 @@ class Config:
 					new_value = ''
 					cursor_pos = 0
 
-				elif key == b'\xe0':  # Special keys
+				elif key in SPECIAL_KEYS:  # Special keys
 					key = msvcrt.getch()
 					if key == b'K':  # Left arrow
 						cursor_pos = max(0, cursor_pos - 1)
@@ -634,7 +635,7 @@ class Config:
 
 				continue
 
-			elif key == b'\xe0':  # Special keys prefix
+			elif key in SPECIAL_KEYS:  # Special keys prefix
 				key = msvcrt.getch()
 
 				if key == b'H':  # Up arrow
@@ -1065,7 +1066,7 @@ class aio:
 			- url: str
 
 			- session: httpx/aiohttp Client Session
-			- toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties
+			- toreturn: ReturnTypes - List or Str separated by `+` of response object methods/properties. Pass 'response' as str to return response object
 			- raise_exceptions: bool - Wether to raise occurred exceptions while making request or return list of None (or append to existing items) with same `toreturn` length
 			- filter: Callable - Filters received response right after getting one
 			- any other session.request() argument
@@ -1084,26 +1085,32 @@ class aio:
 
 		else:
 			if httpx:
-				import httpx
+				import httpx # type: ignore
 				ses = httpx.AsyncClient(http2 = True, follow_redirects = True)
 
 			elif niquests:
-				import niquests
+				import niquests # type: ignore
 				ses = niquests.AsyncSession()
 
 			else:
 				import aiohttp
 				ses = aiohttp.ClientSession()
 
-		_toreturn = toreturn
-		if isinstance(toreturn, str):
+		if return_response := toreturn == 'response':
+			pass
+
+		elif isinstance(toreturn, str):
 			toreturn = toreturn.split('+')
 
 		items_len = len(toreturn)
 
 		try:
 			response = await ses.request(method, url, **kwargs)
-			if _toreturn == 'response':
+			if return_response:
+				if not session:
+					if httpx: await ses.aclose()
+					else: await ses.close()
+					
 				return response
 
 		except Exception as e:
@@ -1991,16 +1998,13 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 
 	# ----------------------METHODS----------------------
 	def encode_numbers(numbers: list[int]) -> bytes:
-		data = bytearray()
 		numbers_len = len(numbers)
-
 		if numbers_len == 1:
 			return struct.pack(STRUCT, numbers[0])
 
-		max_step = max(numbers[i + 1] - numbers[i] for i in range(numbers_len - 1))
-
-		# Set encoding based on max step
-		set_encoding(max_step < 0xFF)
+		data = bytearray()
+		stepless255 = not next((True for i in range(len(numbers) - 1) if numbers[i + 1] - numbers[i] >= 0xFF), False)
+		set_encoding(stepless255)
 
 		# Add starting page
 		prev_page = numbers[0]
@@ -2010,7 +2014,6 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 		data.extend(encoding)
 
 		i = 1
-
 		while i < numbers_len:
 			page = numbers[i]
 			from_prev_step = page - prev_page
@@ -2025,7 +2028,7 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 					length += 1
 
 				# Use range function
-				if length >= 4:
+				if length > 3:
 					data.extend(FUNCTION)
 
 					# Default range
@@ -2090,6 +2093,12 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 		EXT_SEPARATOR = separator
 
 	# ------------------COMPRESSION------------------
+
+	# STRUCTURE:
+	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
+	# (default extension) & (encoding type) & (page amount) |
+	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
+
 	# Stream base data
 	data = bytearray()
 	data.extend(default_ext.encode('utf-8'))  # Default extension
@@ -2109,11 +2118,6 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 		if repetitive_pages:
 			data.extend(b'\xFF') # Byte after page amount tells wether indices are repetitive
 			data.extend(encode_numbers(repetitive_pages))
-
-	# STRUCTURE:
-	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
-	# (default extension) & (encoding type) & (page amount) |
-	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
 
 	# Compress all extensions
 	for ext, num_list in images.items():
@@ -2290,8 +2294,6 @@ def decompress_images(data: bytes) -> dict[str, list[int]]:
 		images[default_ext] = []
 
 	images[default_ext].extend(set(range(1, page_amount + 1)) - added_pages)
-
-	if repetitive:
-		images[default_ext].sort()
+	images[default_ext].sort()
 
 	return images
