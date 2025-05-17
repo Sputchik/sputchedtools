@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.0'
+__version__ = '0.37.1'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -273,9 +273,10 @@ class ProgressBar:
 		if not tasks:
 			raise ValueError("You didn't provide any tasks")
 
+		import asyncio
 		self.update(0)
 
-		for task in self.asyncio.as_completed(tasks):
+		for task in asyncio.as_completed(tasks):
 			result = await task
 			self.update()
 			yield result
@@ -284,7 +285,7 @@ class ProgressBar:
 
 	def finish(self):
 		finish_message = f'\r{self._text} {self.completed_tasks}/{self.task_amount} {self.final_text}'
-		print(finish_message, flush = True)
+		print(finish_message, flush = True, end = '')
 
 	def __exit__(self, *exc):
 		self.finish()
@@ -1476,10 +1477,14 @@ class num:
 	decim = decim_round
 	# print(decim_round(0.00000000485992, 3))
 
-	def nicify(value: int) -> int:
-		"""Converts numbers: 1234 -> 1200, 278 -> 250, 399 -> 300, 478 -> 400 etc."""
+	def nicify_int(
+		value: int,
+		fives_if_scaled_lt: int = 0,
+		five_if_scaled_gt: int = 3,
+		ten_if_scaled_gt: int = 7
+	) -> int:
 
-		if value == 0:
+		if value == 0 or isinstance(value, float):
 			return value
 
 		import math
@@ -1487,17 +1492,22 @@ class num:
 		exponent = math.floor(math.log10(abs_value))
 		factor = 10 ** exponent
 		scaled = abs_value / factor
+		neg = 1 if value > 0 else -1
 
-		if scaled < 3:
-			step = factor * 0.5 # 50
+		if scaled < fives_if_scaled_lt:
+			step = factor * 0.5
+
+		elif scaled > ten_if_scaled_gt:
+			return int(10 * factor) * neg
+		elif scaled > five_if_scaled_gt:
+			return int(5 * factor) * neg
+
 		else:
-			step = factor# * 1 # 100
+			step = factor
 
+		# print(abs_value, exponent, factor, scaled, math.floor(abs_value / step))
 		max_tick = math.floor(abs_value / step) * step
-		if value < 0:
-			max_tick = -max_tick
-
-		return int(max_tick)
+		return int(max_tick) * neg
 
 	def bss(
 		value: Union[int, float],
