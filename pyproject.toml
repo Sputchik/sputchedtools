@@ -22,9 +22,3 @@ Issues = "https://github.com/Sputchik/sputchedtools/issues"
 
 [tool.setuptools.dynamic]
 version = {attr = "sputchedtools.__version__"}
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "-v --capture=no --tb=short"
-pythonpath = ["src"]

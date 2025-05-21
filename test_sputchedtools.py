@@ -5,13 +5,7 @@ import random
 import os
 import shutil
 
-try:
-	from src.sputchedtools import *
-except ImportError:
-	import sys
-	# sys.path.append('../src')
-	from sputchedtools import *
-
+from src.sputchedtools import *
 enhance_loop()
 
 url = 'https://cloudflare-quic.com/'
