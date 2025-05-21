@@ -16,14 +16,13 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.5'
+__version__ = '0.37.6'
 
 # ----------------CLASSES-----------------
 class JSON:
 	"""
 	Unifies json and orjson libraries
 	If `orjson` not installed, `ordumps` and `orloads` will be replaced with json's
-	Ensure you properly handle JSON.DUMP_TYPE / JSON.BYTE_SUFFIX (for non-write modes)
 	"""
 
 	def __init__(self):
@@ -89,7 +88,7 @@ class Timer:
 	Code execution Timer
 
 	Format variables:
-		%a - auto, best-suited format
+		%a - automatic, most suitable format
 		%s  - seconds
 		%ms - milliseconds
 		%us - microseconds
@@ -314,9 +313,9 @@ class Anim:
 		# This will be appended to the end
 		do_timer: Union[Formattable, None] = None, # '(%a)',
 
-		delay: float = 0.08,
+		delay: float = 0.1,
 		nap_time: float = 0.01,
-		chars: Optional[AnimChars] = None,
+		chars: Optional[Iterable[str]] = None,
 
 		# True -> Leave as is (Why)
 		# False -> Clear char
@@ -333,10 +332,10 @@ class Anim:
 		self.prepend_text = prepend_text
 		self.append_text = append_text
 		self.text_format = text_format
-		self.do_timer = do_timer
+		self.do_timer = 'Done in %a' if do_timer is True else do_timer
 		self.clear_on_exit = clear_on_exit
 
-		self.chars = chars or  ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
+		self._chars = chars or AnimChars.slash
 		self.delay = delay
 
 		self.nap_period = range(int(delay / nap_time))
@@ -344,70 +343,34 @@ class Anim:
 		self.last_nap = delay % nap_time
 
 		self.terminal_width = get_terminal_size().columns
-		self.chars = self.adapt_chars_spaces(self.chars)
-		self.char = self.chars[0]
 		self.done = False
 
-	@classmethod
-	def get_max_char_len(cls, chars: Iterable[Any]) -> int:
-		if not all(hasattr(char, '__len__') for char in chars):
-			last_char = chars[-1]
-
-			if hasattr(last_char, '__str__'):
-				return len(
-					str(chars[-1])
-				)
-
-			else:
-				raise TypeError(f'Provided char list has neither `__len__` nor `__str__` attribute')
-
-		return len(
-			max(chars, key = len)
-		)
-
-	@classmethod
-	def adapt_chars_spaces(cls, chars: Iterable) -> Iterable:
-		mcl = cls.get_max_char_len(chars)
-		if mcl <= 1:
+	@staticmethod
+	def adapt_chars_spaces(chars: Iterable[str]) -> Iterable[str]:
+		mcl = len(max(chars, key = len))
+		if mcl == 1:
 			return chars
 
-		new_chars = []
-
-		for char in chars:
-			char_len = len(char)
-			len_diff = mcl - char_len
-
-			if len_diff:
-				char += ' ' * len_diff
-
-			new_chars.append(char)
-
-		return new_chars
+		return [char + ' ' * (mcl - len(char)) for char in chars]
 
 	@property
+	def _chars(self):
+		return self.chars
+
+	@_chars.setter
 	def _chars(self, chars: AnimChars):
 		self.chars = self.adapt_chars_spaces(chars)
+		self.char = self.chars[0]
 
 	def set_text(self, new_text: str, prepended: bool = True):
+		attr = 'prepend_text' if prepended else 'append_text'
+
 		new_len = len(new_text)
-		# if new_len > self.terminal_width:
-		# 	return
-
-		if prepended:
-			attr = 'prepend_text'
-		else:
-			attr = 'append_text'
-
 		old_len = len(getattr(self, attr))
 		setattr(self, attr, new_text)
-
-		if new_len < old_len:
-			diff = abs(old_len - new_len)
-			spaces = ' ' * diff
-			self.safe_line_echo(self.get_line() + spaces)
-
-		else:
-			self.safe_line_echo(self.get_line())
+		
+		spaces = ' ' * (old_len - new_len)
+		self.safe_line_echo(self.get_line() + spaces)
 
 	def safe_line_echo(self, line: str):
 		print(line, end = '', flush = True)
@@ -425,19 +388,17 @@ class Anim:
 		return f"\r{line}"
 
 	def update(self):
-		line = self.get_line()
-		print(line, end = '', flush = True)
+		print(self.get_line(), end = '', flush = True)
 
 	def _format_final_line(self, timer: Optional[Timer] = None) -> str:
 		base = '\r'
 
 		if timer:
-			timer.fmt = self.do_timer
 			# Format with timer
 			return base + self.text_format.format(
 				prepend = self.prepend_text,
-				char = ' ' * len(self.char),
-				append = f'{self.append_text} {timer.format()}'
+				char = (' ' * len(self.char)) if self.clear_on_exit is not None else self.char,
+				append = f'{self.append_text} {timer.format_output(timer.diff, self.do_timer)}'
 			)
 
 		elif self.clear_on_exit is True:
@@ -504,8 +465,9 @@ class Option:
 	):
 		"""
 		Args:
-			name: str - Option name
-			value: str - Option default value
+			title: str - Option name that will be displayed
+			id: Any - identifier for option. Defaults to `title` if not provided
+			value: str - Option value that will be returned and show in some callbacks
 			callback: Callbacks - Option callback type
 				direct: 1 - Direct in-terminal editing. `value` acts as editable value
 				toggle: 2 - Toggle option. `value` acts as boolean value
@@ -539,17 +501,19 @@ class Config:
 		if is_rowed:
 			self.options: list[list[Option]] = options
 			self.page_amount = len(options)
-			self.option_amount = sum(len(row) for row in options) or 1
+			self.option_amount = sum(len(page) for page in options) or 1
 
 		else:
 			self.option_amount = len(options)
 			self.page_amount = self.option_amount // per_page or 1
 			self.options: list[list[Option]] = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
 
+		self.index = 0
+
 		from sys import platform
-		if 'win' in platform or 'nt' in platform:
+		if platform == 'win32':
 			self.cli = self.win_cli
-		elif platform == 'linux' or 'darwin' in platform:
+		elif platform == 'linux' or platform == 'darwin':
 			self.cli = self.unix_cli
 		else:
 			self.cli = self.any_cli
@@ -564,11 +528,13 @@ class Config:
 	def win_cli(self) -> dict[str, str]:
 		import msvcrt, os
 		os.system('')
-		self.index = 0
+
 		selected_option = 0
+
 		cursor_pos = 0
 		editing = False
 		new_value = ''
+
 		EXIT_KEYS = {b'\x03', b'\x04', b'q', b'\x1b'}
 		TOGGLE_KEYS = {b'\r', b' '}
 		SPECIAL_KEYS = {b'\xe0', b'\x00'}
@@ -759,28 +725,29 @@ class Config:
 			old_settings = termios.tcgetattr(fd)
 
 			try:
-				tty.setraw(sys.stdin.fileno())
+				tty.setraw(fd)
 				rlist, _, _ = select.select([fd], [], [])
+				if not rlist:
+					return
 
-				if rlist:
-						ch = sys.stdin.read(1)
-						if ch == '\x1b':  # escape sequences
-							ch2 = sys.stdin.read(1)
-							if ch2 == '[':
-								ch3 = sys.stdin.read(1)
-								return f'\x1b[{ch3}'
-						return ch
+				ch = sys.stdin.read(1)
+				if ch == '\x1b':  # escape sequences
+					ch2 = sys.stdin.read(1)
+					if ch2 == '[':
+						ch3 = sys.stdin.read(1)
+						return f'\x1b[{ch3}'
 
-				else:
-						return None
+				return ch
+
 			finally:
 				termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-		self.index = 0
 		selected_option = 0
+
 		editing = False
 		new_value = ''
 		cursor_pos = 0
+
 		EXIT_KEYS = {'\x03', '\x04', 'q', '\x1b'}
 		TOGGLE_KEYS = {'\r', ' '}
 
@@ -1651,7 +1618,7 @@ def enhance_loop() -> bool:
 
 	try:
 
-		if 'win' in platform:
+		if platform == 'win32':
 			import winloop # type: ignore
 			asyncio.set_event_loop_policy(winloop.EventLoopPolicy())
 

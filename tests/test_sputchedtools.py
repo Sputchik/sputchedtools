@@ -19,7 +19,7 @@ num_test_iters = 15
 _compress_file = 'sputchedtools.py'
 compress_folder = '__pycache__'
 num.suffixes = num.fileSize_suffixes
-sl = 0.001
+sl = 0.003
 start, end = 20, 80
 
 @pytest.mark.asyncio
