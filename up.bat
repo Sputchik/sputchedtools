@@ -2,7 +2,7 @@
 
 set "origin=%CD%"
 
-python -m build -wnsx
+python -m build -wnx
 twine upload dist/*
 rmdir /S /Q dist
 

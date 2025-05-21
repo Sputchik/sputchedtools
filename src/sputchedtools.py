@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.4'
+__version__ = '0.37.5'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -437,7 +437,7 @@ class Anim:
 			return base + self.text_format.format(
 				prepend = self.prepend_text,
 				char = ' ' * len(self.char),
-				append = self.append_text + timer.format_output(timer.diff)
+				append = f'{self.append_text} {timer.format()}'
 			)
 
 		elif self.clear_on_exit is True:
@@ -470,6 +470,7 @@ class Anim:
 					self.sleep(self.last_nap)
 
 		# Format and display final line
+		self.elapsed = t.elapsed
 		final_line = self._format_final_line(t if self.do_timer else None)
 		self.safe_line_echo(final_line)
 
@@ -1110,7 +1111,7 @@ class aio:
 				if not session:
 					if httpx: await ses.aclose()
 					else: await ses.close()
-					
+
 				return response
 
 		except Exception as e:
