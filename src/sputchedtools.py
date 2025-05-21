@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.6'
+__version__ = '0.37.7'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -370,10 +370,7 @@ class Anim:
 		setattr(self, attr, new_text)
 		
 		spaces = ' ' * (old_len - new_len)
-		self.safe_line_echo(self.get_line() + spaces)
-
-	def safe_line_echo(self, line: str):
-		print(line, end = '', flush = True)
+		print(self.get_line() + spaces, end = '', flush = True)
 
 	def get_line(self) -> str:
 		line = self.text_format.format(
@@ -433,7 +430,7 @@ class Anim:
 		# Format and display final line
 		self.elapsed = t.elapsed
 		final_line = self._format_final_line(t if self.do_timer else None)
-		self.safe_line_echo(final_line)
+		print(final_line, end = '', flush = True)
 
 	def __enter__(self) -> 'Anim':
 		self.thread = self.Thread(target=self.anim)
@@ -1002,6 +999,12 @@ class RequestError(Exception):
 	def __getattr__(self, name):
 		return getattr(self.orig_exc, name)
 
+class BadFilterResult:
+	def __init__(self, orig_val: Falsy = False):
+		self.orig_val = orig_val
+	def __bool__(self):
+		return False
+	
 class aio:
 
 	"""
@@ -1025,7 +1028,7 @@ class aio:
 		*,
 		filter: Callable[[Any], bool] = None,
 		**kwargs,
-	) -> Union[Any, list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError, BadFilterResult]:
 
 		"""
 		Accepts:
@@ -1065,12 +1068,11 @@ class aio:
 				ses = aiohttp.ClientSession()
 
 		if return_response := toreturn == 'response':
-			pass
+			items_len = 1
 
 		elif isinstance(toreturn, str):
 			toreturn = toreturn.split('+')
-
-		items_len = len(toreturn)
+			items_len = len(toreturn)
 
 		try:
 			response = await ses.request(method, url, **kwargs)
@@ -1099,7 +1101,7 @@ class aio:
 				ok = await ok
 
 			if ok is not True:
-				return ok
+				return BadFilterResult(ok)
 
 		return_items = []
 
@@ -1138,7 +1140,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> Union[Any, list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError, BadFilterResult]:
 		return await aio.request('GET', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -1150,7 +1152,7 @@ class aio:
 		httpx: bool = False,
 		niquests: bool = False,
 		**kwargs,
-	) -> Union[Any, list[Any], RequestError]:
+	) -> Union[Any, list[Any], RequestError, BadFilterResult]:
 		return await aio.request('POST', url, session, toreturn, raise_exceptions, httpx, niquests, **kwargs)
 
 	@staticmethod
@@ -1165,11 +1167,11 @@ class aio:
 		filter: Callable[[Any], Union[bool, None]] = lambda r: getattr(r, 'status', getattr(r, 'status_code')) == 200,
 		interval: Union[float, None] = 5.0,
 		retries: int = -1,
+		filter_stop_flag: Any = None,
 		**kwargs
 	) -> Union[Any, list[Any], None]:
 
-		if interval:
-			import asyncio
+		import asyncio
 
 		while retries != 0:
 			retries -= 1
@@ -1181,7 +1183,11 @@ class aio:
 				**kwargs
 			)
 
-			if not isinstance(items, RequestError):
+			if isinstance(items, BadFilterResult):
+				if items.orig_val == filter_stop_flag:
+					return filter_stop_flag
+			
+			elif not isinstance(items, RequestError):
 				return items
 
 			elif interval and retries != 0:
