@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.7'
+__version__ = '0.37.9'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -310,8 +310,7 @@ class Anim:
 		# Formatting stuff
 		prepend_text: str = '', append_text: str = '',
 		text_format: str = '{prepend} {char}{append}',
-		# This will be appended to the end
-		do_timer: Union[Formattable, None] = None, # '(%a)',
+		final_text: str = 'Done (%a)',
 
 		delay: float = 0.1,
 		nap_time: float = 0.01,
@@ -332,18 +331,19 @@ class Anim:
 		self.prepend_text = prepend_text
 		self.append_text = append_text
 		self.text_format = text_format
-		self.do_timer = 'Done in %a' if do_timer is True else do_timer
+		self.final_text = final_text or ''
 		self.clear_on_exit = clear_on_exit
-
 		self._chars = chars or AnimChars.slash
-		self.delay = delay
 
+		self.delay = delay
 		self.nap_period = range(int(delay / nap_time))
 		self.normal_nap = nap_time
 		self.last_nap = delay % nap_time
 
 		self.terminal_width = get_terminal_size().columns
 		self.done = False
+		self.t: Timer = None
+		self.elapsed = 0
 
 	@staticmethod
 	def adapt_chars_spaces(chars: Iterable[str]) -> Iterable[str]:
@@ -368,54 +368,47 @@ class Anim:
 		new_len = len(new_text)
 		old_len = len(getattr(self, attr))
 		setattr(self, attr, new_text)
-		
-		spaces = ' ' * (old_len - new_len)
-		print(self.get_line() + spaces, end = '', flush = True)
+
+		spaces = ' ' * abs(old_len - new_len)
+		self.safe_print(self.get_line() + spaces)
 
 	def get_line(self) -> str:
 		line = self.text_format.format(
-			prepend=self.prepend_text,
-			char=self.char,
-			append=self.append_text
+			prepend = self.prepend_text,
+			char = self.char,
+			append = self.append_text
 		)
+		return f"\r{line}"
 
+	def safe_print(self, line: str):
 		if len(line) >= self.terminal_width:
 			line = line[:self.terminal_width - 4] + "..."
 
-		return f"\r{line}"
+		print(line, flush = True, end = '')
 
 	def update(self):
-		print(self.get_line(), end = '', flush = True)
+		self.safe_print(self.get_line())
 
-	def _format_final_line(self, timer: Optional[Timer] = None) -> str:
-		base = '\r'
+	def get_final_line(self) -> str:
+		if self.clear_on_exit:
+			return f'\r{" " * len(self.get_line())}\r'
 
-		if timer:
-			# Format with timer
-			return base + self.text_format.format(
-				prepend = self.prepend_text,
-				char = (' ' * len(self.char)) if self.clear_on_exit is not None else self.char,
-				append = f'{self.append_text} {timer.format_output(timer.diff, self.do_timer)}'
-			)
+		append = f'{self.append_text}{" " if self.append_text else ""}{self.t.format()}'
+		char = self.char if self.clear_on_exit is None else ' ' * (len(self.char) - len(append))
 
-		elif self.clear_on_exit is True:
-			# Clear entire line
-			return base + ' ' * len(self.get_line()) + base
+		return f'\r{self.text_format.format(
+			prepend = self.prepend_text,
+			char = char,
+			append = append
+		)}'
 
-		elif self.clear_on_exit is False:
-			# Clear only animation char
-			return base + self.text_format.format(
-				prepend = self.prepend_text,
-				char = ' ' * len(self.char),
-				append = self.append_text
-			)
+	def finish(self):
+		if self.clear_on_exit is not None or self.final_text:
+			self.safe_print(self.get_final_line())
 
-		else:
-			# Leave as is
-			return base + self.get_line()
 
 	def anim(self):
-		with QTimer() as t:
+		with QTimer(self.final_text) as self.t:
 			while not self.done:
 				for self.char in self.chars:
 					if self.done: break
@@ -428,12 +421,34 @@ class Anim:
 					self.sleep(self.last_nap)
 
 		# Format and display final line
-		self.elapsed = t.elapsed
-		final_line = self._format_final_line(t if self.do_timer else None)
-		print(final_line, end = '', flush = True)
+		self.elapsed = self.t.diff
+		self.finish()
+
+	def lap(self,
+		prepend_text: str = '',
+		append_text: str = '',
+		chars: Iterable[str] = None,
+		final_text: str = None,
+		from_previous_line: str = '\n'
+	):
+		self.stop()
+
+		self.prepend_text = prepend_text
+		self.append_text = append_text
+
+		if chars:
+			self._chars = chars
+
+		if final_text is not None:
+			self.final_text = final_text
+
+		self.done = False
+
+		print(from_previous_line, end = '', flush = True)
+		self.start()
 
 	def __enter__(self) -> 'Anim':
-		self.thread = self.Thread(target=self.anim)
+		self.thread = self.Thread(target = self.anim)
 		self.thread.daemon = True
 		self.thread.start()
 
@@ -443,6 +458,8 @@ class Anim:
 		self.done = True
 		self.thread.join()
 
+	start = __enter__
+	stop = __exit__
 
 class Callbacks:
 	direct = 1
@@ -1004,7 +1021,7 @@ class BadFilterResult:
 		self.orig_val = orig_val
 	def __bool__(self):
 		return False
-	
+
 class aio:
 
 	"""
@@ -1070,8 +1087,10 @@ class aio:
 		if return_response := toreturn == 'response':
 			items_len = 1
 
-		elif isinstance(toreturn, str):
-			toreturn = toreturn.split('+')
+		else:
+			if isinstance(toreturn, str):
+				toreturn = toreturn.split('+')
+
 			items_len = len(toreturn)
 
 		try:
@@ -1186,7 +1205,7 @@ class aio:
 			if isinstance(items, BadFilterResult):
 				if items.orig_val == filter_stop_flag:
 					return filter_stop_flag
-			
+
 			elif not isinstance(items, RequestError):
 				return items
 
@@ -1773,7 +1792,7 @@ def make_tar(
 						with open(file_path, 'rb') as file_buffer:
 							file_buffer.peek()
 
-							info = tar.gettarinfo(arcname=file_rel_path, fileobj=file_buffer)
+							info = tar.gettarinfo(arcname = file_rel_path, fileobj = file_buffer)
 							tar.addfile(info, file_buffer)
 
 					except ignore_errors:

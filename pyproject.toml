@@ -20,5 +20,8 @@ classifiers = [
 Repository = "https://github.com/Sputchik/sputchedtools"
 Issues = "https://github.com/Sputchik/sputchedtools/issues"
 
+[tool.setuptools]
+py-modules = ["src.sptz", "src.sputchedtools"]
+
 [tool.setuptools.dynamic]
-version = {attr = "sputchedtools.__version__"}
+version = {attr = "src.sputchedtools.__version__"}

@@ -11,6 +11,11 @@ def update_pyproject_dependency(version):
 		f'dependencies = ["sputchedtools>={version}"]',
 		content
 	)
+	content = re.sub(
+		r'version = ".*"',
+		f'version = "{version}"',
+		content
+	)
 	
 	with open('sptz/pyproject.toml', 'w') as f:
 		f.write(content)
