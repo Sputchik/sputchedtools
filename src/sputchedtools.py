@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.10'
+__version__ = '0.37.11'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -369,7 +369,7 @@ class Anim:
 		old_len = len(getattr(self, attr))
 		setattr(self, attr, new_text)
 
-		spaces = ' ' * abs(old_len - new_len)
+		spaces = ' ' * (old_len - new_len)
 		self.safe_print(self.get_line() + spaces)
 
 	def get_line(self) -> str:
