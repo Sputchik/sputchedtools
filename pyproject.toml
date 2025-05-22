@@ -21,7 +21,10 @@ Repository = "https://github.com/Sputchik/sputchedtools"
 Issues = "https://github.com/Sputchik/sputchedtools/issues"
 
 [tool.setuptools]
-py-modules = ["src.sptz", "src.sputchedtools"]
+py-modules = ["sptz", "sputchedtools"]
+
+[tool.setuptools.package-dir]
+"" = "src"
 
 [tool.setuptools.dynamic]
-version = {attr = "src.sputchedtools.__version__"}
+version = {attr = "sputchedtools.__version__"}
