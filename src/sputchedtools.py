@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.15'
+__version__ = '0.37.16'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -565,7 +565,7 @@ class Config:
 		EXIT_KEYS = {b'\x03', b'\x04', b'\x1b', b'q'}
 		TOGGLE_KEYS = {b'\r', b' '}
 		SPECIAL_KEYS = {b'\xe0', b'\x00'}
-		pages = display_page and len(self.page_amount) > 1
+		pages = display_page and self.page_amount > 1
 
 		while True:
 			page = self.index + 1
@@ -782,7 +782,7 @@ class Config:
 
 		EXIT_KEYS = {'\x03', '\x04', 'q', '\x1b'}
 		TOGGLE_KEYS = {'\r', ' '}
-		pages = display_page and len(self.page_amount) > 1
+		pages = display_page and self.page_amount > 1
 
 		while True:
 			page = self.index + 1
