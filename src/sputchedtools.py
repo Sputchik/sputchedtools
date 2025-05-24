@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.17'
+__version__ = '0.37.18'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -431,7 +431,7 @@ class Anim:
 		append_text: str = '',
 		chars: Iterable[str] = None,
 		final_text: str = None,
-		from_previous_line: str = '\n'
+		from_previous_line: str = ''
 	):
 		self.stop()
 
@@ -446,7 +446,9 @@ class Anim:
 
 		self.done = False
 
-		print(from_previous_line, end = '', flush = True)
+		if from_previous_line:
+			print(from_previous_line, end = '', flush = True)
+		
 		self.start()
 
 	def __enter__(self) -> 'Anim':
