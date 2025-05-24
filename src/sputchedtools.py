@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.13'
+__version__ = '0.37.14'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -552,7 +552,7 @@ class Config:
 		new_index = self.index + amount
 		self.index = new_index % self.page_amount
 
-	def win_cli(self) -> dict[str, str]:
+	def win_cli(self, specify_exit_type: bool = False) -> dict[str, str]:
 		import msvcrt, os
 		os.system('')
 
@@ -562,7 +562,7 @@ class Config:
 		editing = False
 		new_value = ''
 
-		EXIT_KEYS = {b'\x03', b'\x04', b'q', b'\x1b'}
+		EXIT_KEYS = {b'\x03', b'\x04', b'\x1b', b'q'}
 		TOGGLE_KEYS = {b'\r', b' '}
 		SPECIAL_KEYS = {b'\xe0', b'\x00'}
 
@@ -741,9 +741,13 @@ class Config:
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
-		return {option.id: option.value for page in self.options for option in page}
+		results = {option.id: option.value for page in self.options for option in page}
+		if specify_exit_type:
+			results['_is_force_exit'] = key in (b'\x03', b'\x04')
+		
+		return results
 
-	def unix_cli(self) -> dict[str, str]:
+	def unix_cli(self, specify_exit_type: bool = False) -> dict[str, str]:
 
 		import sys, tty, termios, select
 
@@ -927,9 +931,13 @@ class Config:
 
 		# Return all options
 		print('\033[2J\033[H', flush = True, end = '')
-		return {option.id: option.value for page in self.options for option in page}
+		results = {option.id: option.value for page in self.options for option in page}
+		if specify_exit_type:
+			results['_is_force_exit'] = key in ('\x03', '\x04')
+		
+		return results
 
-	def any_cli(self) -> dict[str, str]:
+	def any_cli(self, specify_exit_type: bool = ...) -> dict[str, str]:
 		self.index = 0
 
 		while True:
