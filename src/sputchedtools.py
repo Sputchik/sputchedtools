@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.11'
+__version__ = '0.37.12'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -467,6 +467,7 @@ class Callbacks:
 	callable = 3
 	scrollable = 4
 	instant = 5
+	dummy = 6
 
 class Option:
 	def __init__(
@@ -488,6 +489,7 @@ class Option:
 				callable: 3 - Custom callback function. `value` acts as function, which receives `Option` as argument. Can be useful for inner-configs
 				scrollable: 4 - Let's you scroll (left/right) through `selectable_values` list. `value` acts as current/selected value
 				instant: 5 - On any toggle key, Option.id is returned. Can be useful for quick option selection
+				dummy: 6 - Can be used for description/uneditable entries (Any interaction ignored)
 
 			values: list[str] - Option values
 
@@ -671,7 +673,7 @@ class Config:
 					current_idx = option.scrollable_values.index(option.value)
 					option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
 
-				else:
+				elif option.callback == Callbacks.direct:
 					editing = True
 					new_value = option.value
 					cursor_pos = len(new_value)
@@ -856,7 +858,7 @@ class Config:
 					current_idx = option.scrollable_values.index(option.value)
 					option.value = option.scrollable_values[(current_idx + 1) % len(option.scrollable_values)]
 
-				else:
+				elif option.callback == Callbacks.direct:
 					editing = True
 					new_value = option.value
 					cursor_pos = len(new_value)
@@ -1996,7 +1998,7 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 			return struct.pack(STRUCT, numbers[0])
 
 		data = bytearray()
-		stepless255 = not next((True for i in range(len(numbers) - 1) if numbers[i + 1] - numbers[i] >= 0xFF), False)
+		stepless255 = next((False for i in range(len(numbers) - 1) if numbers[i + 1] - numbers[i] >= 0xFF), True)
 		set_encoding(stepless255)
 
 		# Add starting page
@@ -2290,3 +2292,120 @@ def decompress_images(data: bytes) -> dict[str, list[int]]:
 	images[default_ext].sort()
 
 	return images
+
+def dummy_sync(*args, **kwargs): pass
+async def dummy_async(*args, **kwargs): pass
+async def empty_aiter(): yield
+
+def dummify_class(original_cls):
+	"""
+	### Create a dummy version of a class with all methods silenced
+	
+	#### Usage example:
+	
+	You want to silence terminal class without struggling with modifying existing code.
+	Using Anim() for example
+	
+	To do so, simply add: `Anim = to_dummy_class(Anim)`
+
+	Every (async) method returns None, so be careful.
+	Except some exclusions: __enter__, __aenter__
+
+	Attributes that may have been initialized after class(), will return None - 
+	`__getattr__() -> None`
+
+	
+	#### Let's do ProgressBar:
+
+	```python
+	ProgressBar = to_dummy_class(ProgressBar)
+	iterable = range(10)
+	pb = ProgressBar(iterable)
+	# Add Fallback
+	pb.silent_iterator = iter(iterable)
+
+	for i in pb:
+		print(i)
+	```
+
+	"""
+	import inspect
+	class_dict = {}
+
+	def dummy_self(self, *args, **kwargs): return self
+	async def adummy_self(self, *args, **kwargs): return self
+	
+	# Process all annotations
+	# for name, specified_type in original_cls.__annotations__:
+	# 	class_dict[name] = specified_type()
+	
+	# Process all attributes in the original class
+	for name, attr in original_cls.__dict__.items():
+		if name == '__dict__':
+			continue
+
+		if isinstance(attr, (classmethod, staticmethod)):
+			# Handle decorated methods
+			original_func = attr.__func__
+			wrapper_type = type(attr)
+			
+			if inspect.iscoroutinefunction(original_func):
+				replacement = wrapper_type(dummy_async)
+			else:
+				replacement = wrapper_type(dummy_sync)
+			
+			class_dict[name] = replacement
+		
+		elif isinstance(attr, property):
+			# Handle properties by wrapping fget/fset/fdel
+			fget = attr.fget
+			fset = attr.fset
+			fdel = attr.fdel
+
+			new_fget = (dummy_async if inspect.iscoroutinefunction(fget) else dummy_sync) if fget is not None else fget
+			new_fset = (dummy_async if inspect.iscoroutinefunction(fset) else dummy_sync) if fset is not None else fset
+			new_fdel = dummy_async if inspect.iscoroutinefunction(fdel) else dummy_sync if fdel is not None else fdel
+
+			class_dict[name] = property(new_fget, new_fset, new_fdel)
+	
+		elif inspect.isfunction(attr):
+			# Handle regular methods
+			if inspect.iscoroutinefunction(attr):
+				class_dict[name] = dummy_async
+			else:
+				class_dict[name] = dummy_sync
+					
+		else:
+			# Preserve non-method attributes
+			class_dict[name] = attr
+	
+	if '__enter__' in class_dict:
+		class_dict['__enter__'] = dummy_self
+		class_dict['__exit__'] = dummy_sync
+	
+	if '__aenter__' in class_dict:
+		class_dict['__aenter__'] = adummy_self
+		class_dict['__aexit__'] = dummy_async
+	
+	if '__iter__' in class_dict:		
+		def dummy_iter(self): return getattr(self, 'silent_iterator', [])
+		def dummy_next(self): return next(self.silent_iterator)
+
+		class_dict['__iter__'] = dummy_iter
+		class_dict['__next__'] = dummy_next
+
+	if '__aiter__' in class_dict:
+		async def dummy_aiter(self): return getattr(self, 'silent_iterator', empty_aiter())
+		async def dummy_anext(self): return await anext(self.silent_iterator)
+	
+		class_dict['__aiter__'] = dummy_aiter
+		class_dict['__anext__'] = dummy_anext
+	
+	class_dict['__getattr__'] = dummy_sync
+
+	# Create new class with the same name plus "Dummy" prefix
+	return type(
+		f"Dummy{original_cls.__name__}",
+		original_cls.__bases__,
+		class_dict
+	)
