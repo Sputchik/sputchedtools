@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.12'
+__version__ = '0.37.13'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -509,10 +509,31 @@ class Config:
 	def __init__(
 		self,
 		options: Union[list[Option], list[list[Option]]],
-		per_page: int = 9
+		per_page: int = 9,
+		header: str = '',
+		footer: str = ''
 	):
 		self.per_page = per_page
+		self._options = options
+		self.header = header
+		self.footer = footer
+		self.index = 0
 
+		from sys import platform
+		if platform == 'win32':
+			self.cli = self.win_cli
+		elif platform == 'linux' or platform == 'darwin':
+			self.cli = self.unix_cli
+		else:
+			self.cli = self.any_cli
+
+	@property
+	def _options(self):
+		return self.options
+
+	@_options.setter
+	def _options(self, options):
+		per_page = getattr(self, 'per_page', 9)
 		is_rowed = isinstance(options[0], list)
 		if is_rowed:
 			self.options: list[list[Option]] = options
@@ -523,16 +544,6 @@ class Config:
 			self.option_amount = len(options)
 			self.page_amount = self.option_amount // per_page or 1
 			self.options: list[list[Option]] = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
-
-		self.index = 0
-
-		from sys import platform
-		if platform == 'win32':
-			self.cli = self.win_cli
-		elif platform == 'linux' or platform == 'darwin':
-			self.cli = self.unix_cli
-		else:
-			self.cli = self.any_cli
 
 	def set_page(self, index: int):
 		self.index = index % self.page_amount
@@ -581,7 +592,7 @@ class Config:
 				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			print(f'\033[2J\033[H{options_repr}\n\nPage {page}/{self.page_amount}', flush = True, end = '')
+			print(f'\033[2J\033[H{self.header}{options_repr}\n\nPage {page}/{self.page_amount}{self.footer}', flush = True, end = '')
 			key = msvcrt.getch()
 
 			if editing:
@@ -793,7 +804,7 @@ class Config:
 				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			print(f'\033[2J\033[H{options_repr}\n\nPage {page}/{self.page_amount}', flush = True, end = '')
+			print(f'\033[2J\033[H{self.header}{options_repr}\n\nPage {page}/{self.page_amount}{self.footer}', flush = True, end = '')
 			key = getch()
 
 			if editing:
@@ -925,13 +936,13 @@ class Config:
 			page = self.index + 1
 			options = self.options[self.index]
 
-			options_repr = ''
+			options_repr = self.header
 			for i, option in enumerate(options):
 				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
 				options_repr += (f'[{i + 1}]{toggle} {option.title}{value}\n')
 
-			options_repr += f'\nPage {page}/{self.page_amount}'
+			options_repr += f'\nPage {page}/{self.page_amount}{self.footer}'
 			options_repr += '\nOption: '
 
 			with NewLiner():
