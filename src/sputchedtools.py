@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.16'
+__version__ = '0.37.17'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -320,6 +320,7 @@ class Anim:
 		# False -> Clear char
 		# None -> Whole line
 		clear_on_exit: Union[bool, None] = False,
+		end = '\n'
 	):
 		from threading import Thread
 		from shutil import get_terminal_size
@@ -332,6 +333,7 @@ class Anim:
 		self.append_text = append_text
 		self.text_format = text_format
 		self.final_text = final_text or ''
+		self.end = end
 		self.clear_on_exit = clear_on_exit
 		self._chars = chars or AnimChars.slash
 
@@ -391,7 +393,7 @@ class Anim:
 
 	def get_final_line(self) -> str:
 		if self.clear_on_exit:
-			return f'\r{" " * len(self.get_line())}\r'
+			return f'\r{" " * len(self.get_line())}\r{self.end}'
 
 		append = f'{self.append_text}{" " if self.append_text else ""}{self.t.format()}'
 		char = self.char if self.clear_on_exit is None else ' ' * (len(self.char) - len(append))
@@ -400,7 +402,7 @@ class Anim:
 			prepend = self.prepend_text,
 			char = char,
 			append = append
-		)}'
+		)}{self.end}'
 
 	def finish(self):
 		if self.clear_on_exit is not None or self.final_text:
