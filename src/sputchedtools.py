@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.14'
+__version__ = '0.37.15'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -552,7 +552,7 @@ class Config:
 		new_index = self.index + amount
 		self.index = new_index % self.page_amount
 
-	def win_cli(self, specify_exit_type: bool = False) -> dict[str, str]:
+	def win_cli(self, specify_exit_type: bool = False, display_page: bool = True) -> dict[str, str]:
 		import msvcrt, os
 		os.system('')
 
@@ -565,6 +565,7 @@ class Config:
 		EXIT_KEYS = {b'\x03', b'\x04', b'\x1b', b'q'}
 		TOGGLE_KEYS = {b'\r', b' '}
 		SPECIAL_KEYS = {b'\xe0', b'\x00'}
+		pages = display_page and len(self.page_amount) > 1
 
 		while True:
 			page = self.index + 1
@@ -592,7 +593,7 @@ class Config:
 				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			print(f'\033[2J\033[H{self.header}{options_repr}\n\nPage {page}/{self.page_amount}{self.footer}', flush = True, end = '')
+			print(f'\033[2J\033[H{self.header}{options_repr}{"\n\nPage {page}/{self.page_amount}" if pages else ""}{self.footer}', flush = True, end = '')
 			key = msvcrt.getch()
 
 			if editing:
@@ -747,7 +748,7 @@ class Config:
 		
 		return results
 
-	def unix_cli(self, specify_exit_type: bool = False) -> dict[str, str]:
+	def unix_cli(self, specify_exit_type: bool = False, display_page: bool = True) -> dict[str, str]:
 
 		import sys, tty, termios, select
 
@@ -781,6 +782,7 @@ class Config:
 
 		EXIT_KEYS = {'\x03', '\x04', 'q', '\x1b'}
 		TOGGLE_KEYS = {'\r', ' '}
+		pages = display_page and len(self.page_amount) > 1
 
 		while True:
 			page = self.index + 1
@@ -806,6 +808,9 @@ class Config:
 					value = ''
 
 				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
+
+			options_repr = '\n'.join(options_repr)
+			print(f'\033[2J\033[H{self.header}{options_repr}{"\n\nPage {page}/{self.page_amount}" if pages else ""}{self.footer}', flush = True, end = '')
 
 			options_repr = '\n'.join(options_repr)
 			print(f'\033[2J\033[H{self.header}{options_repr}\n\nPage {page}/{self.page_amount}{self.footer}', flush = True, end = '')
@@ -939,6 +944,7 @@ class Config:
 
 	def any_cli(self, specify_exit_type: bool = ...) -> dict[str, str]:
 		self.index = 0
+		pages = self.page_amount > 1
 
 		while True:
 			page = self.index + 1
@@ -950,8 +956,9 @@ class Config:
 				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
 				options_repr += (f'[{i + 1}]{toggle} {option.title}{value}\n')
 
-			options_repr += f'\nPage {page}/{self.page_amount}{self.footer}'
-			options_repr += '\nOption: '
+			if pages:
+				options_repr += f'\nPage {page}/{self.page_amount}'
+			options_repr += f'{self.footer}\nOption: '
 
 			with NewLiner():
 				inp = input(options_repr)
