@@ -4,11 +4,11 @@ requires = ["setuptools>=42"]
 [project]
 name = "sptz"
 readme = "README.md"
-version = "0.37.11"
+version = "0.37.20"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [{name = "Sputchik", email = "sputchik@gmail.com"}]
-dependencies = ["sputchedtools>=0.37.11"]
+dependencies = ["sputchedtools>=0.37.20"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Programming Language :: Python :: 3.10",

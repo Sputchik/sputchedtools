@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.19'
+__version__ = '0.37.20'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -815,9 +815,6 @@ class Config:
 
 			options_repr = '\n'.join(options_repr)
 			print(f'\033[2J\033[H{self.header}{options_repr}{f"\n\nPage {page}/{self.page_amount}" if pages else ""}{self.footer}', flush = True, end = '')
-
-			options_repr = '\n'.join(options_repr)
-			print(f'\033[2J\033[H{self.header}{options_repr}\n\nPage {page}/{self.page_amount}{self.footer}', flush = True, end = '')
 			key = getch()
 
 			if editing:
