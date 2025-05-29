@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.20'
+__version__ = '0.37.23'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -343,7 +343,7 @@ class Anim:
 		self.last_nap = delay % nap_time
 
 		self.terminal_width = get_terminal_size().columns
-		self.done = False
+		self.done = None
 		self.t: Timer = None
 		self.elapsed = 0
 
@@ -433,7 +433,8 @@ class Anim:
 		final_text: str = None,
 		from_previous_line: str = ''
 	):
-		self.stop()
+		if self.done is False:
+			self.stop()
 
 		self.prepend_text = prepend_text
 		self.append_text = append_text
@@ -455,6 +456,7 @@ class Anim:
 		self.thread = self.Thread(target = self.anim)
 		self.thread.daemon = True
 		self.thread.start()
+		self.done = False
 
 		return self
 
@@ -1886,7 +1888,7 @@ def compress(
 
 	if not output:
 		if isinstance(source, str) and os.path.exists(source):
-			output = os.path.basename(os.path.abspath(source)) + f'.{algorithm}'
+			output = f'{os.path.dirname(source)}/{os.path.basename(source)}.{algorithm}'
 		else:
 			output = False
 
@@ -1989,6 +1991,7 @@ def decompress(
 	if is_tar:
 		import sys
 		stream.seek(0)
+		output = output.rstrip('.tar')
 
 		if sys.version_info >= (3, 12):
 			tarfile.open(fileobj = stream).extractall(output, filter = 'data')
