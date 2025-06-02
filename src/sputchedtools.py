@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.23'
+__version__ = '0.37.24'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -1394,7 +1394,7 @@ class num:
 	def unshorten(
 		value: str,
 		_round: bool = False
-	) -> Union[float, str]:
+	) -> Union[float, int]:
 
 		"""
 		Accepts:
@@ -1427,6 +1427,21 @@ class num:
 
 		except (ValueError, KeyError):
 			return float(value) # Raises ValueError if value is not a number
+
+	@staticmethod
+	def unshorten_custom(
+		value: str,
+		suffixes: Optional[list[Union[str, int]]] = None,		
+		_round: bool = False,
+	) -> Union[int, float, None]:
+		
+		suffixes = suffixes or num.sfx
+		mp = suffixes[-1]
+
+		for i, sfx in enumerate(suffixes[:-1]):
+			if value.endswith(sfx):
+				number = float(value[:-len(sfx)]) * (mp ** i)
+				return round(number) if _round else number
 
 	@staticmethod
 	def decim_round(
