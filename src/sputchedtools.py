@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.24'
+__version__ = '0.37.25'
 
 # ----------------CLASSES-----------------
 class JSON:
@@ -1901,9 +1901,13 @@ def compress(
 	tar_in_memory = is_out_buffer or tar_in_memory
 	import os
 
+	is_folder = None
 	if not output:
 		if isinstance(source, str) and os.path.exists(source):
-			output = f'{os.path.dirname(source)}/{os.path.basename(source)}.{algorithm}'
+			source = os.path.abspath(source).replace('\\', '/')
+			is_folder = os.path.isdir(source)
+			output = f'{os.path.dirname(source)}/{os.path.basename(source)}{".tar" if is_folder else ""}.{algorithm}'
+		
 		else:
 			output = False
 
@@ -1913,7 +1917,7 @@ def compress(
 		)
 
 	else:
-		if not tar_if_file and os.path.isfile(source):
+		if not tar_if_file and is_folder is False:
 			with open(source, 'rb') as f:
 				compressed = compress(f.read(), **additional_args)
 
@@ -1973,6 +1977,9 @@ def decompress(
 
 	type, content = get_content(source)
 
+	if content is None:
+		raise ValueError('Unknown source content type')
+
 	if not algorithm:
 		for algo, (decompress, start_bytes) in algorithm_map.items():
 			if callable(start_bytes):
@@ -1989,7 +1996,11 @@ def decompress(
 	result = decompress(content, **kwargs)
 
 	if output is None:
-		output = source.rsplit('.', 1)[0] if isinstance(source, str) else False
+		if type == 1:
+			output = False # Return bytes
+		elif type != 2:
+			import os
+			output = f'{os.path.abspath(source).replace("\\", "/").rsplit(".", 1)[0]}'
 
 	if output is False:
 		return result
@@ -2006,7 +2017,8 @@ def decompress(
 	if is_tar:
 		import sys
 		stream.seek(0)
-		output = output.rstrip('.tar')
+		if output.endswith('.tar'):
+			output = output[:-4]
 
 		if sys.version_info >= (3, 12):
 			tarfile.open(fileobj = stream).extractall(output, filter = 'data')
