@@ -1,4 +1,4 @@
-from typing import Coroutine, Literal, Iterable, Iterator, Any, Callable, Union, Optional, IO, TYPE_CHECKING, Protocol, TypeVar
+from typing import Coroutine, Literal, Iterable, Iterator, Any, Callable, Union, Optional, IO, TYPE_CHECKING, Protocol, TypeVar, Match
 
 if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
@@ -16,9 +16,62 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.25'
+__version__ = '0.37.26'
 
 # ----------------CLASSES-----------------
+class Object:
+	@staticmethod
+	def default(obj: "Object"):
+		from enum import Enum
+		from datetime import datetime
+
+		if isinstance(obj, (bytes, Match)):
+			return repr(obj)
+
+		elif isinstance(obj, (datetime, Enum)):
+			return str(obj)
+
+		filtered_attributes = {
+			attr: getattr(obj, attr)
+			for attr in filter(
+					lambda x: not x.startswith("_"),
+					obj.__dict__,
+			)
+			if getattr(obj, attr) is not None
+		}
+
+		return {
+			"_": obj.__class__.__name__,
+			**filtered_attributes
+		}
+
+	def __str__(self) -> str:
+		return __import__('json').dumps(self, indent=4, default=Object.default, ensure_ascii=False)
+
+	def __repr__(self) -> str:
+		return "{}({})".format(
+			self.__class__.__name__,
+			", ".join(
+					f"{attr}={repr(getattr(self, attr))}"
+					for attr in filter(lambda x: not x.startswith("_"), self.__dict__)
+					if getattr(self, attr) is not None
+			)
+		)
+
+	def __eq__(self, other: "Object") -> bool:
+		for attr in self.__dict__:
+			try:
+				if attr.startswith("_"):
+					continue
+
+				if getattr(self, attr) != getattr(other, attr):
+					return False
+				
+			except AttributeError:
+					return False
+
+		return True
+	
 class JSON:
 	"""
 	Unifies json and orjson libraries
@@ -1828,6 +1881,7 @@ def make_tar(
 			tar.add(source, arcname = os.path.basename(source))
 
 		else:
+
 			for root, _, files in os.walk(source):
 				for file in files:
 
