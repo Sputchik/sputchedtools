@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.37.26'
+__version__ = '0.38.0'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -202,9 +202,10 @@ class Timer:
 	def __exit__(self, *exc):
 		self.end_time = self.time()
 		self.diff = self.elapsed = self.end_time - self.start_time
+		self.f = self.format()
 
 		if self.fmt and self.echo:
-			print(self.format())
+			print(self.f)
 
 	async def __aenter__(self) -> 'Timer':
 		return self.__enter__()
@@ -451,11 +452,7 @@ class Anim:
 		append = f'{self.append_text}{" " if self.append_text else ""}{self.t.format()}'
 		char = self.char if self.clear_on_exit is None else ' ' * (len(self.char) - len(append))
 
-		return f'\r{self.text_format.format(
-			prepend = self.prepend_text,
-			char = char,
-			append = append
-		)}{self.end}'
+		return '\r' + self.text_format.format(prepend = self.prepend_text, char = char, append = append) + self.end
 
 	def finish(self):
 		if self.clear_on_exit is not None or self.final_text:
@@ -652,7 +649,8 @@ class Config:
 				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			print(f'\033[2J\033[H{self.header}{options_repr}{f"\n\nPage {page}/{self.page_amount}" if pages else ""}{self.footer}', flush = True, end = '')
+			feetskies = f'\n\nPage {page}/{self.page_amount}' if pages else ''
+			print(f'\033[2J\033[H{self.header}{options_repr}{feetskies}{self.footer}', flush = True, end = '')
 			key = msvcrt.getch()
 
 			if editing:
@@ -869,7 +867,8 @@ class Config:
 				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
-			print(f'\033[2J\033[H{self.header}{options_repr}{f"\n\nPage {page}/{self.page_amount}" if pages else ""}{self.footer}', flush = True, end = '')
+			feetskies = f'\n\nPage {page}/{self.page_amount}' if pages else ''
+			print(f'\033[2J\033[H{self.header}{options_repr}{feetskies}{self.footer}', flush = True, end = '')
 			key = getch()
 
 			if editing:
@@ -2054,7 +2053,7 @@ def decompress(
 			output = False # Return bytes
 		elif type != 2:
 			import os
-			output = f'{os.path.abspath(source).replace("\\", "/").rsplit(".", 1)[0]}'
+			output = os.path.abspath(source).replace("\\", "/").rsplit(".", 1)[0]
 
 	if output is False:
 		return result
