@@ -16,7 +16,7 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 
-__version__ = '0.38.0'
+__version__ = '0.38.3'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -66,12 +66,12 @@ class Object:
 
 				if getattr(self, attr) != getattr(other, attr):
 					return False
-				
+
 			except AttributeError:
 					return False
 
 		return True
-	
+
 class JSON:
 	"""
 	Unifies json and orjson libraries
@@ -348,7 +348,7 @@ class ProgressBar:
 
 
 class AnimChars:
-	cubic_spinner = ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
+	cubic = cubic_spinner = ('⠉', '⠙', '⠘', '⠰', '⠴', '⠤', '⠦', '⠆', '⠃', '⠋')
 	slash = ('\\', '|', '/', '―')
 	windows = ("⢀⠀", "⡀⠀", "⠄⠀", "⢂⠀", "⡂⠀", "⠅⠀", "⢃⠀", "⡃⠀", "⠍⠀", "⢋⠀", "⡋⠀", "⠍⠁", "⢋⠁", "⡋⠁", "⠍⠉", "⠋⠉", "⠋⠉", "⠉⠙", "⠉⠙", "⠉⠩", "⠈⢙", "⠈⡙", "⢈⠩", "⡀⢙", "⠄⡙", "⢂⠩", "⡂⢘", "⠅⡘", "⢃⠨", "⡃⢐", "⠍⡐", "⢋⠠", "⡋⢀", "⠍⡁", "⢋⠁", "⡋⠁", "⠍⠉", "⠋⠉", "⠋⠉", "⠉⠙", "⠉⠙", "⠉⠩", "⠈⢙", "⠈⡙", "⠈⠩", "⠀⢙", "⠀⡙", "⠀⠩", "⠀⢘", "⠀⡘", "⠀⠨", "⠀⢐", "⠀⡐", "⠀⠠", "⠀⢀")
 	simpleDots = ('.', '..', '...')
@@ -357,6 +357,7 @@ class AnimChars:
 	clock = ("🕛 ", "🕐 ", "🕑 ", "🕒 ", "🕓 ", "🕔 ", "🕕 ", "🕖 ", "🕗 ", "🕘 ", "🕙 ", "🕚 ")
 	clockBackwards = ("🕛 ", "🕚 ", "🕙 ", "🕘 ", "🕗 ", "🕖 ", "🕕 ", "🕔 ", "🕓 ", "🕒 ", "🕑 ", "🕐 ")
 	pingpong = ("▐⠂       ▌", "▐⠈       ▌", "▐ ⠂      ▌", "▐ ⠠      ▌", "▐  ⡀     ▌", "▐  ⠠     ▌", "▐   ⠂    ▌", "▐   ⠈    ▌", "▐    ⠂   ▌", "▐    ⠠   ▌", "▐     ⡀  ▌", "▐     ⠠  ▌", "▐      ⠂ ▌", "▐      ⠈ ▌", "▐       ⠂▌", "▐       ⠠▌", "▐       ⡀▌", "▐      ⠠ ▌", "▐      ⠂ ▌", "▐     ⠈  ▌", "▐     ⠂  ▌", "▐    ⠠   ▌", "▐    ⡀   ▌", "▐   ⠠    ▌", "▐   ⠂    ▌", "▐  ⠈     ▌", "▐  ⠂     ▌", "▐ ⠠      ▌", "▐ ⡀      ▌", "▐⠠       ▌")
+	DEFAULT = slash
 
 class Anim:
 	def __init__(
@@ -389,7 +390,7 @@ class Anim:
 		self.final_text = final_text or ''
 		self.end = end
 		self.clear_on_exit = clear_on_exit
-		self._chars = chars or AnimChars.slash
+		self._chars = chars or AnimChars.DEFAULT
 
 		self.delay = delay
 		self.nap_period = range(int(delay / nap_time))
@@ -499,7 +500,7 @@ class Anim:
 
 		if from_previous_line:
 			print(from_previous_line, end = '', flush = True)
-		
+
 		self.start()
 
 	def __enter__(self) -> 'Anim':
@@ -525,14 +526,15 @@ class Callbacks:
 	instant = 5
 	dummy = 6
 
-class Option:
+class Option(Object):
 	def __init__(
 		self,
 		title: str = 'Option',
 		id: Any = None,
 		value: str = '',
 		callback: Callbacks = Callbacks.direct, # Pending rename to `type`
-		scrollable_values: Optional[list[str]] = None
+		scrollable_values: Optional[list[str]] = None,
+		show_index: bool = True
 	):
 		"""
 		Args:
@@ -556,6 +558,7 @@ class Option:
 		self.id = id or title # Option identifier
 		self.callback = callback
 		self.scrollable_values = scrollable_values
+		self.show_index = show_index
 
 		# Check if provided value exists in value list
 		if callback == Callbacks.scrollable and value not in scrollable_values:
@@ -567,13 +570,17 @@ class Config:
 		options: Union[list[Option], list[list[Option]]],
 		per_page: int = 9,
 		header: str = '',
-		footer: str = ''
+		footer: str = '',
+		# show_option_index: bool = True,
+		option_index_per_page: bool = True,
 	):
 		self.per_page = per_page
 		self._options = options
 		self.header = header
 		self.footer = footer
 		self.index = 0
+		# self.show_option_index = show_option_index
+		self.option_index_per_page = option_index_per_page
 
 		from sys import platform
 		if platform == 'win32':
@@ -625,32 +632,31 @@ class Config:
 
 		while True:
 			page = self.index + 1
-			offset = 1 if page == 1 else page * self.per_page
+			offset = 1 if page == 1 or self.option_index_per_page else page * self.per_page
 			options = self.options[self.index]
 			options_repr = []
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
 				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
+				index = f' [{offset + i}]' if option.show_index else ''
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				if option.callback == Callbacks.direct:
-					value = f' - {value}'
-				elif option.callback == Callbacks.scrollable:
+				if option.callback == Callbacks.scrollable:
 					current_idx = option.scrollable_values.index(option.value)
 					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.scrollable_values) else ""}'
-				else:
+				elif option.callback != Callbacks.direct:
 					value = ''
 
-				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
+				options_repr.append(f'{prefix}{index}{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			feetskies = f'\n\nPage {page}/{self.page_amount}' if pages else ''
-			print(f'\033[2J\033[H{self.header}{options_repr}{feetskies}{self.footer}', flush = True, end = '')
+			print(f'\033[2J\033[H{self.header}{options_repr}{feetskies}{self.footer}\n', flush = True, end = '')
 			key = msvcrt.getch()
 
 			if editing:
@@ -744,7 +750,7 @@ class Config:
 
 				elif option.callback == Callbacks.direct:
 					editing = True
-					new_value = option.value
+					new_value = str(option.value)
 					cursor_pos = len(new_value)
 
 			elif key == b'p':
@@ -802,7 +808,7 @@ class Config:
 		results = {option.id: option.value for page in self.options for option in page}
 		if specify_exit_type:
 			results['_is_force_exit'] = key in (b'\x03', b'\x04')
-		
+
 		return results
 
 	def unix_cli(self, specify_exit_type: bool = False, display_page: bool = True) -> dict[str, str]:
@@ -843,32 +849,31 @@ class Config:
 
 		while True:
 			page = self.index + 1
-			offset = 1 if page == 1 else page * self.per_page
+			offset = 1 if page == 1 or self.option_index_per_page else page * self.per_page
 			options = self.options[self.index]
 			options_repr = []
 
 			for i, option in enumerate(options):
 				prefix = '>' if i == selected_option else ' '
 				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
+				index = f' [{offset + i}]' if option.show_index else ''
 
 				if editing and i == selected_option:
 					value = new_value[:cursor_pos] + '█' + new_value[cursor_pos:]
 				else:
 					value = option.value
 
-				if option.callback == Callbacks.direct:
-					value = f' - {value}'
-				elif option.callback == Callbacks.scrollable:
+				if option.callback == Callbacks.scrollable:
 					current_idx = option.scrollable_values.index(option.value)
 					value = f'{"< " if current_idx > 0 else ""}{value}{" >" if current_idx + 1 < len(option.scrollable_values) else ""}'
-				else:
+				elif option.callback != Callbacks.direct:
 					value = ''
 
-				options_repr.append(f'{prefix} [{offset + i}]{toggle} {option.title}{value}')
+				options_repr.append(f'{prefix}{index}{toggle} {option.title}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			feetskies = f'\n\nPage {page}/{self.page_amount}' if pages else ''
-			print(f'\033[2J\033[H{self.header}{options_repr}{feetskies}{self.footer}', flush = True, end = '')
+			print(f'\033[2J\033[H{self.header}{options_repr}{feetskies}{self.footer}\n', flush = True, end = '')
 			key = getch()
 
 			if editing:
@@ -935,7 +940,7 @@ class Config:
 
 				elif option.callback == Callbacks.direct:
 					editing = True
-					new_value = option.value
+					new_value = str(option.value)
 					cursor_pos = len(new_value)
 
 			elif key == 'p':  # Page select
@@ -994,10 +999,10 @@ class Config:
 		results = {option.id: option.value for page in self.options for option in page}
 		if specify_exit_type:
 			results['_is_force_exit'] = key in ('\x03', '\x04')
-		
+
 		return results
 
-	def any_cli(self, specify_exit_type: bool = ...) -> dict[str, str]:
+	def any_cli(self, specify_exit_type: ... = ...) -> dict[str, str]:
 		self.index = 0
 		pages = self.page_amount > 1
 
@@ -1483,10 +1488,10 @@ class num:
 	@staticmethod
 	def unshorten_custom(
 		value: str,
-		suffixes: Optional[list[Union[str, int]]] = None,		
+		suffixes: Optional[list[Union[str, int]]] = None,
 		_round: bool = False,
 	) -> Union[int, float, None]:
-		
+
 		suffixes = suffixes or num.sfx
 		mp = suffixes[-1]
 
@@ -1735,6 +1740,9 @@ class MC_Versions:
 
 # ----------------METHODS----------------
 
+def chunk_list(lst, chunk_size):
+	return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
+
 def enhance_loop() -> bool:
 	from sys import platform
 	import asyncio
@@ -1960,7 +1968,7 @@ def compress(
 			source = os.path.abspath(source).replace('\\', '/')
 			is_folder = os.path.isdir(source)
 			output = f'{os.path.dirname(source)}/{os.path.basename(source)}{".tar" if is_folder else ""}.{algorithm}'
-		
+
 		else:
 			output = False
 
@@ -2410,21 +2418,21 @@ async def empty_aiter(): yield
 def dummify_class(original_cls):
 	"""
 	### Create a dummy version of a class with all methods silenced
-	
+
 	#### Usage example:
-	
+
 	You want to silence terminal class without struggling with modifying existing code.
 	Using Anim() for example
-	
+
 	To do so, simply add: `Anim = to_dummy_class(Anim)`
 
 	Every (async) method returns None, so be careful.
 	Except some exclusions: __enter__, __aenter__
 
-	Attributes that may have been initialized after class(), will return None - 
+	Attributes that may have been initialized after class(), will return None -
 	`__getattr__() -> None`
 
-	
+
 	#### Let's do ProgressBar:
 
 	```python
@@ -2444,11 +2452,11 @@ def dummify_class(original_cls):
 
 	def dummy_self(self, *args, **kwargs): return self
 	async def adummy_self(self, *args, **kwargs): return self
-	
+
 	# Process all annotations
 	# for name, specified_type in original_cls.__annotations__:
 	# 	class_dict[name] = specified_type()
-	
+
 	# Process all attributes in the original class
 	for name, attr in original_cls.__dict__.items():
 		if name == '__dict__':
@@ -2458,14 +2466,14 @@ def dummify_class(original_cls):
 			# Handle decorated methods
 			original_func = attr.__func__
 			wrapper_type = type(attr)
-			
+
 			if inspect.iscoroutinefunction(original_func):
 				replacement = wrapper_type(dummy_async)
 			else:
 				replacement = wrapper_type(dummy_sync)
-			
+
 			class_dict[name] = replacement
-		
+
 		elif isinstance(attr, property):
 			# Handle properties by wrapping fget/fset/fdel
 			fget = attr.fget
@@ -2477,27 +2485,27 @@ def dummify_class(original_cls):
 			new_fdel = dummy_async if inspect.iscoroutinefunction(fdel) else dummy_sync if fdel is not None else fdel
 
 			class_dict[name] = property(new_fget, new_fset, new_fdel)
-	
+
 		elif inspect.isfunction(attr):
 			# Handle regular methods
 			if inspect.iscoroutinefunction(attr):
 				class_dict[name] = dummy_async
 			else:
 				class_dict[name] = dummy_sync
-					
+
 		else:
 			# Preserve non-method attributes
 			class_dict[name] = attr
-	
+
 	if '__enter__' in class_dict:
 		class_dict['__enter__'] = dummy_self
 		class_dict['__exit__'] = dummy_sync
-	
+
 	if '__aenter__' in class_dict:
 		class_dict['__aenter__'] = adummy_self
 		class_dict['__aexit__'] = dummy_async
-	
-	if '__iter__' in class_dict:		
+
+	if '__iter__' in class_dict:
 		def dummy_iter(self): return getattr(self, 'silent_iterator', [])
 		def dummy_next(self): return next(self.silent_iterator)
 
@@ -2507,10 +2515,10 @@ def dummify_class(original_cls):
 	if '__aiter__' in class_dict:
 		async def dummy_aiter(self): return getattr(self, 'silent_iterator', empty_aiter())
 		async def dummy_anext(self): return await anext(self.silent_iterator)
-	
+
 		class_dict['__aiter__'] = dummy_aiter
 		class_dict['__anext__'] = dummy_anext
-	
+
 	class_dict['__getattr__'] = dummy_sync
 
 	# Create new class with the same name plus "Dummy" prefix
