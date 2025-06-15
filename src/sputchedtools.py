@@ -4,7 +4,7 @@ if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
 
 ReturnTypes = Literal['response', 'content', 'text', 'json', 'read', 'status', 'real_url', 'ATTRS', 'charset', 'close', 'closed', 'connection', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'links', 'method', 'ok', 'raise_for_status', 'raw_headers', 'reason', 'release', 'request_info', 'start', 'url', 'url_obj', 'version', 'wait_for_close']
-Algorithms = Literal['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
+Algorithms = Literal['gzip', 'bzip2', 'bzip3', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 Formattable = str
 ActionModes = Literal['write', 'read']
@@ -14,9 +14,10 @@ T = TypeVar('T')
 class Falsy(Protocol[T]):
 	def __bool__(self) -> bool: ...
 
-algorithms = ['gzip', 'bzip2', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
+algorithms = ['gzip', 'bzip2', 'bzip3', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__version__ = '0.38.3'
+__version__ = '0.38.4'
+__tup_version__ = (0, 38, 4)
 
 # ----------------CLASSES-----------------
 class Object:
@@ -158,7 +159,7 @@ class Timer:
 		from time import perf_counter
 
 		self.time = perf_counter
-		self.fmt = fmt
+		self.fmt = fmt or '%a'
 		self.echo = echo
 		self.laps: list[TimerLap] = []
 		if time_fmts:
@@ -1870,10 +1871,12 @@ def make_tar(
 	source: str,
 	output: str,
 	ignore_errors: Union[type, tuple[type]] = PermissionError,
-	in_memory: bool = False
+	in_memory: bool = False,
+	filter: Optional[Callable[[str], bool]] = None
 ) -> Union[str, bytes]:
 
 	import tarfile, os
+	filtering = callable(filter)
 
 	if in_memory:
 		import io
@@ -1894,6 +1897,8 @@ def make_tar(
 
 					file_path = os.path.join(root, file)
 					file_rel_path = os.path.relpath(file_path, source)
+					if filtering is True and filter(file_rel_path) is not True:
+						continue
 
 					try:
 						with open(file_path, 'rb') as file_buffer:
@@ -1918,22 +1923,24 @@ def compress(
 	ignored_exceptions: Union[type, tuple[type]] = (PermissionError, OSError),
 	tar_in_memory: bool = True,
 	tar_if_file: bool = False,
+	filter: Optional[Callable[[str], bool]] = None,
 	compression_level: Optional[int] = None,
 	check_algorithm_support: bool = False,
-	**kwargs
+	**compress_kwargs
 ) -> Union[int, bytes]:
 
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').compress, {}, {'level': 'compresslevel'}),
 		'bzip2': (lambda: __import__('bz2').compress, {}, {'level': 'compresslevel'}),
+		'bzip3': (lambda:  __import__('bz3').compress, {}, {}),
 		'lzma': (lambda: __import__('lzma').compress, {}, {'level': 'preset'}),
 		'lzma2': (lambda: __import__('lzma').compress, lambda: {'format': __import__('lzma').FORMAT_XZ}, {'level': 'preset'}),
 		'deflate': (lambda: __import__('zlib').compress, {}, {'level': 'level'}),
 		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}, {'level': 'compression_level'}),
 		'zstd': (lambda: __import__('zstandard').compress, {}, {'level': 'level'}),
-		'brotli': (lambda: __import__('brotli').compress, lambda: {'mode': __import__('brotli').MODE_GENERIC}, {'level': 'quality'}),
+		'brotli': (lambda: __import__('brotlicffi').compress, lambda: {'mode': __import__('brotlicffi').MODE_GENERIC}, {'level': 'quality'}),
 	}
-
+	
 	get_compress_func, additional_args, slug_map = algorithm_map[algorithm]
 
 	if check_algorithm_support:
@@ -1953,10 +1960,10 @@ def compress(
 	if compression_level:
 		compression_slug = slug_map.get('level')
 
-		if compression_slug:
+		if compression_slug is not None:
 			additional_args[compression_slug] = compression_level
 
-	additional_args.update(kwargs)
+	additional_args.update(compress_kwargs)
 
 	is_out_buffer = hasattr(output, 'write')
 	tar_in_memory = is_out_buffer or tar_in_memory
@@ -1987,37 +1994,13 @@ def compress(
 			if isinstance(output, str) and os.path.exists(output):
 				os.remove(output)
 
-			stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory)
+			stream = make_tar(source, tar_path, ignored_exceptions, tar_in_memory, filter)
 			compressed = compress(stream if tar_in_memory else tar_path, **additional_args)
 
 			if not tar_in_memory:
 				os.remove(tar_path)
 
 	return write_content(compressed, output)
-
-def is_brotli(data: bytes) -> bool:
-	"""
-	Don't use this
-	"""
-
-	if not isinstance(data, bytes):
-		return False
-
-	if len(data) < 4:
-		return False
-
-	first_byte = data[0]
-
-	wbits = first_byte & 0x0F
-	header_bits = (first_byte >> 4) & 0x0F
-
-	if 10 >= wbits >= 24:
-		return False
-
-	if header_bits > 0x0D:
-		return False
-
-	return True
 
 def decompress(
 	source: Union[bytes, str, IO[bytes]],
@@ -2029,11 +2012,11 @@ def decompress(
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').decompress, b'\x1f\x8b\x08'),
 		'bzip2': (lambda: __import__('bz2').decompress, b'BZh'),
+		'bzip3': (lambda: __import__('bz3').decompress, b'BZ3v1'),
 		'lzma': (lambda: __import__('lzma').decompress, b'\xfd7zXZ'),
 		'deflate': (lambda: __import__('zlib').decompress, b'x'),
 		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
 		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
-		'brotli': (lambda: __import__('brotli').decompress, is_brotli),
 	}
 
 	type, content = get_content(source)
@@ -2208,7 +2191,7 @@ def compress_images(images: dict[str, Iterable[int]], page_amount: int = None, r
 	# ------------------COMPRESSION------------------
 
 	# STRUCTURE:
-	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EOData, [...] - repeated stuff
+	# & - SEPARATOR, && - EXT_SEPARATOR, | - possible EO-Data, [...] - repeated stuff
 	# (default extension) & (encoding type) & (page amount) |
 	# [ && (ext1 name) (start page) | (encoding type) (ext1 data) ]
 
