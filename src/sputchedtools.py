@@ -4,7 +4,7 @@ if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
 
 ReturnTypes = Literal['response', 'content', 'text', 'json', 'read', 'status', 'real_url', 'ATTRS', 'charset', 'close', 'closed', 'connection', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'links', 'method', 'ok', 'raise_for_status', 'raw_headers', 'reason', 'release', 'request_info', 'start', 'url', 'url_obj', 'version', 'wait_for_close']
-Algorithms = Literal['gzip', 'bzip2', 'bzip3', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd']
+Algorithms = Literal['gzip', 'bzip2', 'bzip3', 'lzma2', 'deflate', 'lz4', 'zstd']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 Formattable = str
 ActionModes = Literal['write', 'read']
@@ -14,10 +14,10 @@ T = TypeVar('T')
 class Falsy(Protocol[T]):
 	def __bool__(self) -> bool: ...
 
-algorithms = ['gzip', 'bzip2', 'bzip3', 'lzma', 'lzma2', 'deflate', 'lz4', 'zstd']
+algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__version__ = '0.38.4'
-__tup_version__ = (0, 38, 4)
+__tup_version__ = (0, 38, 6)
+__version__ = '0.38.6'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -203,7 +203,7 @@ class Timer:
 	def __exit__(self, *exc):
 		self.end_time = self.time()
 		self.diff = self.elapsed = self.end_time - self.start_time
-		self.f = self.format()
+		self.f = self.format() if self.fmt else ''
 
 		if self.fmt and self.echo:
 			print(self.f)
@@ -240,7 +240,21 @@ class ProgressBar:
 		final_text: str = "Done\n",
 		task_amount: Optional[int] = None,
 	):
+		self._iterator = iterator
+		self.task_amount = self.task_amount or task_amount
+		if self.task_amount is None:
+			raise ValueError("You must provide either `task_amount` or `iterator` with fixed length")
 
+		self._text = text
+		self.completed_tasks = 0
+		self.final_text = final_text
+
+	@property
+	def _iterator(self):
+		return self.iterator
+
+	@_iterator.setter
+	def _iterator(self, iterator: Union[Iterator, Iterable]):
 		if iterator:
 			if isinstance(iterator, Iterator):
 				self.iterator = iterator
@@ -254,18 +268,8 @@ class ProgressBar:
 		else:
 			self.iterator = None
 
-		if task_amount is None:
-			if not hasattr(iterator, '__len__'):
-				raise TypeError(f"You didn't provide task_amount for Iterator with no __len__ attribute")
-
-			self.task_amount = iterator.__len__()
-
-		else:
-			self.task_amount = task_amount
-
-		self._text = text
-		self.completed_tasks = 0
-		self.final_text = final_text
+		if hasattr(self.iterator, '__len__'):
+			self.task_amount = len(self.iterator)
 
 	@property
 	def text(self) -> str:
@@ -319,19 +323,30 @@ class ProgressBar:
 		self.completed_tasks += by
 		print(f'\r{self._text} {self.completed_tasks}/{self.task_amount}', end = '', flush = True)
 
-	async def gather(self, tasks: Optional[Iterable[Coroutine]] = None) -> list[Any]:
-		return [r async for r in self.as_completed(tasks)]
+	async def gather(self, tasks: Optional[Iterable[Coroutine]] = None, return_exceptions: bool = False) -> list[Any]:
+		if tasks:
+			self._iterator = tasks
 
-	async def as_completed(self, tasks: Optional[Iterable[Coroutine]] = None):
-		tasks = tasks or self.iterator
-		if not tasks:
-			raise ValueError("You didn't provide any tasks")
+		return [r async for r in self.as_completed(tasks, return_exceptions = return_exceptions)]
+
+	async def as_completed(self, tasks: Optional[Iterable[Coroutine]] = None, return_exceptions: bool = False):
+		if tasks:
+			self._iterator = tasks
 
 		import asyncio
 		self.update(0)
 
 		for task in asyncio.as_completed(tasks):
-			result = await task
+
+			try:
+				result = await task
+
+			except Exception as e:
+				if return_exceptions:
+					result = e
+				else:
+					raise
+
 			self.update()
 			yield result
 
@@ -459,7 +474,6 @@ class Anim:
 	def finish(self):
 		if self.clear_on_exit is not None or self.final_text:
 			self.safe_print(self.get_final_line())
-
 
 	def anim(self):
 		with QTimer(self.final_text) as self.t:
@@ -1940,7 +1954,7 @@ def compress(
 		'zstd': (lambda: __import__('zstandard').compress, {}, {'level': 'level'}),
 		'brotli': (lambda: __import__('brotlicffi').compress, lambda: {'mode': __import__('brotlicffi').MODE_GENERIC}, {'level': 'quality'}),
 	}
-	
+
 	get_compress_func, additional_args, slug_map = algorithm_map[algorithm]
 
 	if check_algorithm_support:
@@ -2018,6 +2032,7 @@ def decompress(
 		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
 		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
 	}
+	algorithm_map['lzma2'] = algorithm_map['lzma']
 
 	type, content = get_content(source)
 
