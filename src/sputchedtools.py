@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 6)
-__version__ = '0.38.6'
+__tup_version__ = (0, 38, 9)
+__version__ = '0.38.9'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -240,10 +240,8 @@ class ProgressBar:
 		final_text: str = "Done\n",
 		task_amount: Optional[int] = None,
 	):
+		self.task_amount = task_amount
 		self._iterator = iterator
-		self.task_amount = self.task_amount or task_amount
-		if self.task_amount is None:
-			raise ValueError("You must provide either `task_amount` or `iterator` with fixed length")
 
 		self._text = text
 		self.completed_tasks = 0
@@ -255,21 +253,19 @@ class ProgressBar:
 
 	@_iterator.setter
 	def _iterator(self, iterator: Union[Iterator, Iterable]):
-		if iterator:
-			if isinstance(iterator, Iterator):
-				self.iterator = iterator
+		if isinstance(iterator, Iterator):
+			self.iterator = iterator
 
-			elif not hasattr(iterator, '__iter__'):
-				raise TypeError(f"Provided object is not Iterable, Type: {type(iterator)}")
-
-			else:
-				self.iterator = iterator.__iter__()
+		elif not hasattr(iterator, '__iter__'):
+			pass
+			# raise TypeError(f"Provided object is not iterable, Type: {type(iterator)}")
 
 		else:
-			self.iterator = None
+			self.iterator = iterator.__iter__()
 
-		if hasattr(self.iterator, '__len__'):
-			self.task_amount = len(self.iterator)
+		if self.task_amount is None:
+			if hasattr(iterator, '__len__'):
+				self.task_amount = len(iterator)
 
 	@property
 	def text(self) -> str:
@@ -327,7 +323,8 @@ class ProgressBar:
 		if tasks:
 			self._iterator = tasks
 
-		return [r async for r in self.as_completed(tasks, return_exceptions = return_exceptions)]
+		results = [r async for r in self.as_completed(return_exceptions = return_exceptions)]
+		return results
 
 	async def as_completed(self, tasks: Optional[Iterable[Coroutine]] = None, return_exceptions: bool = False):
 		if tasks:
@@ -336,7 +333,7 @@ class ProgressBar:
 		import asyncio
 		self.update(0)
 
-		for task in asyncio.as_completed(tasks):
+		for task in asyncio.as_completed(self.iterator):
 
 			try:
 				result = await task
@@ -1597,9 +1594,10 @@ class num:
 
 	def nicify_int(
 		value: int,
-		fives_if_scaled_lt: int = 0,
-		five_if_scaled_gt: int = 3,
-		ten_if_scaled_gt: int = 7
+		fives_if_scaled_lte: int = 0,
+		five_if_scaled_gte: int = 3,
+		ten_if_scaled_gte: int = 7,
+		floor_tick: bool = True
 	) -> int:
 
 		if value == 0 or isinstance(value, float):
@@ -1612,19 +1610,19 @@ class num:
 		scaled = abs_value / factor
 		neg = 1 if value > 0 else -1
 
-		if scaled < fives_if_scaled_lt:
+		if scaled <= fives_if_scaled_lte:
 			step = factor * 0.5
 
-		elif scaled > ten_if_scaled_gt:
+		elif scaled >= ten_if_scaled_gte:
 			return int(10 * factor) * neg
-		elif scaled > five_if_scaled_gt:
+		elif scaled >= five_if_scaled_gte:
 			return int(5 * factor) * neg
 
 		else:
 			step = factor
 
 		# print(abs_value, exponent, factor, scaled, math.floor(abs_value / step))
-		max_tick = math.floor(abs_value / step) * step
+		max_tick = (math.floor(abs_value / step) if floor_tick else math.ceil(abs_value / step)) * step
 		return int(max_tick) * neg
 
 	def bss(
