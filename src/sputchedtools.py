@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 9)
-__version__ = '0.38.9'
+__tup_version__ = (0, 38, 10)
+__version__ = '0.38.10'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -84,6 +84,7 @@ class JSON:
 
 		try:
 			import orjson
+			orjson.JSONEncodeError
 			self.orjson = orjson
 
 			def ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
@@ -91,8 +92,19 @@ class JSON:
 			def orloads(data: bytes, **kwargs) -> dict:
 				return orjson.loads(data, **kwargs)
 
+			def safe_ordumps(obj: dict, indent: bool = False, **kwargs) -> bytes:
+				"""
+				Safely dump, not worrying about fuckass TypeError
+				"""
+
+				try:
+					return self.ordumps(obj, indent = indent, **kwargs)
+				except TypeError:
+					return self.dumps(obj, indent = 2 if indent else None)
+
 			self.ordumps = ordumps
 			self.orloads = orloads
+			self.safe_ordumps = safe_ordumps
 
 		except ImportError:
 			self.orjson = None
@@ -103,6 +115,7 @@ class JSON:
 				return json.loads(data, **kwargs)
 
 			self.ordumps = ordumps
+			self.safe_ordumps = ordumps
 			self.orloads = orloads
 
 		self.json = json
