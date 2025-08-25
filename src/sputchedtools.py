@@ -4,7 +4,7 @@ if TYPE_CHECKING:
 	from _typeshed import OpenTextMode
 
 ReturnTypes = Literal['response', 'content', 'text', 'json', 'read', 'status', 'real_url', 'ATTRS', 'charset', 'close', 'closed', 'connection', 'content_disposition', 'content_length', 'content_type', 'cookies', 'get_encoding', 'headers', 'history', 'host', 'links', 'method', 'ok', 'raise_for_status', 'raw_headers', 'reason', 'release', 'request_info', 'start', 'url', 'url_obj', 'version', 'wait_for_close']
-Algorithms = Literal['gzip', 'bzip2', 'bzip3', 'lzma2', 'deflate', 'lz4', 'zstd']
+Algorithms = Literal['gzip', 'bzip2', 'bzip3', 'lzma2', 'deflate', 'lz4', 'zstd', 'brotli']
 RequestMethods = Literal['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'CONNECT', 'OPTIONS', 'TRACE']
 Formattable = str
 ActionModes = Literal['write', 'read']
@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 10)
-__version__ = '0.38.10'
+__tup_version__ = (0, 38, 12)
+__version__ = '0.38.12'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -1769,6 +1769,22 @@ class MC_Versions:
 def chunk_list(lst, chunk_size):
 	return [lst[i:i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
+def get_enhanced_loop():
+	from sys import platform
+	import asyncio
+
+	try:
+		if platform == 'win32':
+			import winloop # type: ignore
+			return winloop.new_event_loop()
+
+		else:
+			import uvloop # type: ignore
+			return uvloop.new_event_loop()
+
+	except ImportError:
+		return asyncio.new_event_loop()
+
 def enhance_loop() -> bool:
 	from sys import platform
 	import asyncio
@@ -1949,8 +1965,10 @@ def compress(
 	tar_in_memory: bool = True,
 	tar_if_file: bool = False,
 	filter: Optional[Callable[[str], bool]] = None,
-	compression_level: Optional[int] = None,
 	check_algorithm_support: bool = False,
+	compression_level: Optional[int] = None,
+	level: Optional[int] = None,
+	quality: Optional[int] = None,
 	**compress_kwargs
 ) -> Union[int, bytes]:
 
@@ -1963,7 +1981,7 @@ def compress(
 		'deflate': (lambda: __import__('zlib').compress, {}, {'level': 'level'}),
 		'lz4': (lambda: __import__('lz4.frame').frame.compress, {}, {'level': 'compression_level'}),
 		'zstd': (lambda: __import__('zstandard').compress, {}, {'level': 'level'}),
-		'brotli': (lambda: __import__('brotlicffi').compress, lambda: {'mode': __import__('brotlicffi').MODE_GENERIC}, {'level': 'quality'}),
+		'brotli': (lambda: __import__('brotlicffi').compress, {}, {'level': 'quality'}),
 	}
 
 	get_compress_func, additional_args, slug_map = algorithm_map[algorithm]
@@ -1982,6 +2000,7 @@ def compress(
 	if callable(additional_args):
 		additional_args = additional_args()
 
+	compression_level = compression_level or level or quality
 	if compression_level:
 		compression_slug = slug_map.get('level')
 
@@ -2042,6 +2061,7 @@ def decompress(
 		'deflate': (lambda: __import__('zlib').decompress, b'x'),
 		'lz4': (lambda: __import__('lz4.frame').frame.decompress, b'\x04\x22\x4d\x18'),
 		'zstd': (lambda: __import__('zstandard').decompress, b'\x28\xb5\x2f\xfd'),
+		'brotli': (lambda: __import__('brotlicffi').decompress, None),
 	}
 	algorithm_map['lzma2'] = algorithm_map['lzma']
 
@@ -2052,7 +2072,10 @@ def decompress(
 
 	if not algorithm:
 		for algo, (decompress, start_bytes) in algorithm_map.items():
-			if callable(start_bytes):
+			if not start_bytes:
+				continue
+
+			elif callable(start_bytes):
 				algorithm = algo if start_bytes(content) else None
 
 			elif content.startswith(start_bytes):
