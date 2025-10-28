@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 12)
-__version__ = '0.38.12'
+__tup_version__ = (0, 38, 14)
+__version__ = '0.38.14'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -118,9 +118,14 @@ class JSON:
 			self.safe_ordumps = ordumps
 			self.orloads = orloads
 
+		def indentify(obj: dict) -> Union[bytes, str]:
+			"""JSON.safe_ordumps indent = True wrapper"""
+			return self.safe_ordumps(obj, indent = True)
+
 		self.json = json
 		self.dumps = json.dumps
 		self.loads = json.loads
+		self.indentify = indentify
 		self.detect_encoding = json.detect_encoding
 
 		self.DecodeError = json.JSONDecodeError
@@ -1296,7 +1301,7 @@ class aio:
 		raise_exceptions: bool = False,
 		httpx: bool = False,
 		niquests: bool = False,
-		filter: Callable[[Any], Union[bool, None]] = lambda r: getattr(r, 'status', getattr(r, 'status_code')) == 200,
+		filter: Callable[[Any], Union[bool, None]] = lambda r: getattr(r, 'status', getattr(r, 'status_code', None)) == 200,
 		interval: Union[float, None] = 5.0,
 		retries: int = -1,
 		filter_stop_flag: Any = None,
@@ -1610,7 +1615,8 @@ class num:
 		fives_if_scaled_lte: int = 0,
 		five_if_scaled_gte: int = 3,
 		ten_if_scaled_gte: int = 7,
-		floor_tick: bool = True
+		floor_tick: bool = True,
+		round_tick: bool = False
 	) -> int:
 
 		if value == 0 or isinstance(value, float):
@@ -1635,7 +1641,7 @@ class num:
 			step = factor
 
 		# print(abs_value, exponent, factor, scaled, math.floor(abs_value / step))
-		max_tick = (math.floor(abs_value / step) if floor_tick else math.ceil(abs_value / step)) * step
+		max_tick = (round(abs_value / step) if round_tick else math.floor(abs_value / step) if floor_tick else math.ceil(abs_value / step)) * step
 		return int(max_tick) * neg
 
 	def bss(
