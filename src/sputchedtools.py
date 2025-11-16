@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 14)
-__version__ = '0.38.14'
+__tup_version__ = (0, 38, 15)
+__version__ = '0.38.15'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -118,8 +118,12 @@ class JSON:
 			self.safe_ordumps = ordumps
 			self.orloads = orloads
 
-		def indentify(obj: dict) -> Union[bytes, str]:
-			"""JSON.safe_ordumps indent = True wrapper"""
+		def indentify(obj: dict, indent: int = 2) -> Union[bytes, str]:
+			"""`JSON.stringify indent = <indent>` wrapper"""
+			return self.stringify(obj, indent = indent)
+
+		def orindentify(obj: dict) -> Union[bytes, str]:
+			"""`JSON.safe_ordumps indent = True` wrapper"""
 			return self.safe_ordumps(obj, indent = True)
 
 		self.json = json
