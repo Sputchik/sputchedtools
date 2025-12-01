@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 15)
-__version__ = '0.38.15'
+__tup_version__ = (0, 38, 17)
+__version__ = '0.38.17'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -1309,6 +1309,7 @@ class aio:
 		interval: Union[float, None] = 5.0,
 		retries: int = -1,
 		filter_stop_flag: Any = None,
+		on_iter: Callable = None,
 		**kwargs
 	) -> Union[Any, list[Any], None]:
 
@@ -1331,8 +1332,9 @@ class aio:
 			elif not isinstance(items, RequestError):
 				return items
 
-			elif interval and retries != 0:
+			if interval and retries != 0:
 				await asyncio.sleep(interval)
+				if on_iter: on_iter()
 
 	@staticmethod
 	async def open(
@@ -1981,6 +1983,12 @@ def compress(
 	quality: Optional[int] = None,
 	**compress_kwargs
 ) -> Union[int, bytes]:
+	'''
+	output str - path
+	output None - auto path
+	output False - bytes
+	output buffer - fill buffer
+	'''
 
 	algorithm_map = {
 		'gzip': (lambda: __import__('gzip').compress, {}, {'level': 'compresslevel'}),
@@ -2025,7 +2033,7 @@ def compress(
 
 	is_folder = None
 	if not output:
-		if isinstance(source, str) and os.path.exists(source):
+		if output is not False and isinstance(source, str) and os.path.exists(source):
 			source = os.path.abspath(source).replace('\\', '/')
 			is_folder = os.path.isdir(source)
 			output = f'{os.path.dirname(source)}/{os.path.basename(source)}{".tar" if is_folder else ""}.{algorithm}'
