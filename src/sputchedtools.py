@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 17)
-__version__ = '0.38.17'
+__tup_version__ = (0, 38, 18)
+__version__ = '0.38.18'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -1816,7 +1816,7 @@ def enhance_loop() -> bool:
 	except ImportError:
 		return False
 
-def setup_logger(name: str, clear_file: bool = False, dir: str = 'logs/'):
+def setup_logger(name: str, clear_file: bool = False, dir: str = 'logs/', format: str = '%(levelname)s - %(asctime)s.%(msecs)03d - %(message)s', datefmt: str = '%H:%M:%S'):
 	"""
 	Sets up minimalistic logger with file (all levels) and console (>debug) handlers
 	Using queue.Queue to exclude logging from main thread
@@ -1844,8 +1844,8 @@ def setup_logger(name: str, clear_file: bool = False, dir: str = 'logs/'):
 	console_handler.setLevel(logging.INFO)
 
 	formatter = logging.Formatter(
-		'%(levelname)s - %(asctime)s.%(msecs)03d - %(message)s',
-		datefmt = '%H:%M:%S'
+		format,
+		datefmt = datefmt
 	)
 	file_handler.setFormatter(formatter)
 	console_handler.setFormatter(formatter)
