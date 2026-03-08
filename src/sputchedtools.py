@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 18)
-__version__ = '0.38.18'
+__tup_version__ = (0, 38, 19)
+__version__ = '0.38.19'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -603,6 +603,7 @@ class Config:
 		self,
 		options: Union[list[Option], list[list[Option]]],
 		per_page: int = 9,
+		opt_title_sep: str = '',
 		header: str = '',
 		footer: str = '',
 		# show_option_index: bool = True,
@@ -613,6 +614,7 @@ class Config:
 		self.header = header
 		self.footer = footer
 		self.index = 0
+		self.opt_title_sep = opt_title_sep
 		# self.show_option_index = show_option_index
 		self.option_index_per_page = option_index_per_page
 
@@ -686,7 +688,7 @@ class Config:
 				elif option.callback != Callbacks.direct:
 					value = ''
 
-				options_repr.append(f'{prefix}{index}{toggle} {option.title}{value}')
+				options_repr.append(f'{prefix}{index}{toggle} {option.title}{self.opt_title_sep}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			feetskies = f'\n\nPage {page}/{self.page_amount}' if pages else ''
@@ -903,7 +905,7 @@ class Config:
 				elif option.callback != Callbacks.direct:
 					value = ''
 
-				options_repr.append(f'{prefix}{index}{toggle} {option.title}{value}')
+				options_repr.append(f'{prefix}{index}{toggle} {option.title}{self.opt_title_sep}{value}')
 
 			options_repr = '\n'.join(options_repr)
 			feetskies = f'\n\nPage {page}/{self.page_amount}' if pages else ''
@@ -1048,7 +1050,7 @@ class Config:
 			for i, option in enumerate(options):
 				toggle = f" [{'*' if option.value else ' '}]" if option.callback == Callbacks.toggle else ""
 				value = f' - {option.value}' if option.callback == Callbacks.direct else ''
-				options_repr += (f'[{i + 1}]{toggle} {option.title}{value}\n')
+				options_repr += (f'[{i + 1}]{toggle} {option.title}{self.opt_title_sep}{value}\n')
 
 			if pages:
 				options_repr += f'\nPage {page}/{self.page_amount}'
