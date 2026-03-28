@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 19)
-__version__ = '0.38.19'
+__tup_version__ = (0, 38, 20)
+__version__ = '0.38.20'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -641,7 +641,7 @@ class Config:
 
 		else:
 			self.option_amount = len(options)
-			self.page_amount = self.option_amount // per_page or 1
+			self.page_amount = (self.option_amount + per_page - 1) // per_page
 			self.options: list[list[Option]] = [options[i:i + per_page] for i in range(0, self.option_amount, per_page)]
 
 	def set_page(self, index: int):
@@ -1445,7 +1445,7 @@ class num:
 	"""
 
 	suffixes: list[Union[str, int]] = ['', 'K', 'M', 'B', 'T', 1000]
-	fileSize_suffixes: list[Union[str, int]] = [' B', ' KB', ' MB', ' GB', ' TB', 1024]
+	fileSize_suffixes: list[Union[str, int]] = ['B', 'KB', 'MB', 'GB', 'TB', 1024]
 	sfx = fileSize_suffixes
 	deshorteners: dict[str, int] = {'k': 10**3, 'm': 10**6, 'b': 10**9, 't': 10**12}
 	decims: list[int] = [1000, 100, 10, 5] # List is iterated using enumerate(), so by each iter. decimal amount increases by 1 (starting from 0)
@@ -1456,6 +1456,7 @@ class num:
 		decimals: int = -1,
 		round_decimals: bool = False,
 		precission: int = 14,
+		sep: str = '',
 		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
 
@@ -1483,7 +1484,7 @@ class num:
 
 		value /= unit
 		formatted: str = num.decim_round(value, decimals, round_decimals, precission, decims = [100, 10, 1])
-		return formatted + suffix
+		return formatted + sep + suffix
 
 	@staticmethod
 	def unshorten(
@@ -1657,11 +1658,12 @@ class num:
 		decimals: int = -1,
 		round_decimals: bool = False,
 		precission: int = 14,
+		sep: str = ' ',
 		suffixes: Optional[list[Union[str, int]]] = None
 	) -> str:
 
 		"""num.shorten() wrapper with byte size suffixes"""
-		return num.shorten(value, decimals, round_decimals, precission, suffixes or num.fileSize_suffixes)
+		return num.shorten(value, decimals, round_decimals, precission, sep, suffixes or num.fileSize_suffixes)
 
 	bytesize_shorten = bss
 
