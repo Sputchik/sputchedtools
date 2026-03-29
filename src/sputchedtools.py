@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 38, 20)
-__version__ = '0.38.20'
+__tup_version__ = (0, 39, 0)
+__version__ = '0.39.0'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -1534,7 +1534,7 @@ class num:
 		suffixes = suffixes or num.sfx
 		mp = suffixes[-1]
 
-		for i, sfx in enumerate(suffixes[:-1]):
+		for i, sfx in enumerate(suffixes[:-1][::-1]):
 			if value.endswith(sfx):
 				number = float(value[:-len(sfx)]) * (mp ** i)
 				return round(number) if _round else number
