@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 39, 0)
-__version__ = '0.39.0'
+__tup_version__ = (0, 39, 1)
+__version__ = '0.39.1'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -391,7 +391,7 @@ class AnimChars:
 	circle = ("◜", "◠", "◝", "◟", "◡", "◞")
 	clock = ("🕛 ", "🕐 ", "🕑 ", "🕒 ", "🕓 ", "🕔 ", "🕕 ", "🕖 ", "🕗 ", "🕘 ", "🕙 ", "🕚 ")
 	clockBackwards = ("🕛 ", "🕚 ", "🕙 ", "🕘 ", "🕗 ", "🕖 ", "🕕 ", "🕔 ", "🕓 ", "🕒 ", "🕑 ", "🕐 ")
-	pingpong = ("▐⠂       ▌", "▐⠈       ▌", "▐ ⠂      ▌", "▐ ⠠      ▌", "▐  ⡀     ▌", "▐  ⠠     ▌", "▐   ⠂    ▌", "▐   ⠈    ▌", "▐    ⠂   ▌", "▐    ⠠   ▌", "▐     ⡀  ▌", "▐     ⠠  ▌", "▐      ⠂ ▌", "▐      ⠈ ▌", "▐       ⠂▌", "▐       ⠠▌", "▐       ⡀▌", "▐      ⠠ ▌", "▐      ⠂ ▌", "▐     ⠈  ▌", "▐     ⠂  ▌", "▐    ⠠   ▌", "▐    ⡀   ▌", "▐   ⠠    ▌", "▐   ⠂    ▌", "▐  ⠈     ▌", "▐  ⠂     ▌", "▐ ⠠      ▌", "▐ ⡀      ▌", "▐⠠       ▌")
+	pingpong = ("▐⠂	   ▌", "▐⠈	   ▌", "▐ ⠂	  ▌", "▐ ⠠	  ▌", "▐  ⡀	 ▌", "▐  ⠠	 ▌", "▐   ⠂	▌", "▐   ⠈	▌", "▐	⠂   ▌", "▐	⠠   ▌", "▐	 ⡀  ▌", "▐	 ⠠  ▌", "▐	  ⠂ ▌", "▐	  ⠈ ▌", "▐	   ⠂▌", "▐	   ⠠▌", "▐	   ⡀▌", "▐	  ⠠ ▌", "▐	  ⠂ ▌", "▐	 ⠈  ▌", "▐	 ⠂  ▌", "▐	⠠   ▌", "▐	⡀   ▌", "▐   ⠠	▌", "▐   ⠂	▌", "▐  ⠈	 ▌", "▐  ⠂	 ▌", "▐ ⠠	  ▌", "▐ ⡀	  ▌", "▐⠠	   ▌")
 	DEFAULT = slash
 
 class Anim:
@@ -2105,7 +2105,39 @@ def decompress(
 				break
 
 		if not algorithm:
-			raise ValueError(f"Couldn't detect algorithm for decompression. First 10 bytes: {content[:10]}")
+			try:
+				import zipfile, io, os
+
+				stream = io.BytesIO(content)
+				if zipfile.is_zipfile(stream):
+					stream.seek(0)
+
+					# Determine default output if not set yet
+					if output is None:
+						if type == 1:
+							output = False  # return raw bytes
+						elif type != 2:
+							output = os.path.abspath(source).replace("\\", "/").rsplit(".", 1)[0]
+
+					if output is False:
+						return content
+
+					elif hasattr(output, 'write'):
+						return output.write(content)
+
+					# Extract zip archive
+					with zipfile.ZipFile(stream) as zf:
+						zf.extractall(output)
+
+					return output
+
+			except Exception:
+				pass
+
+			raise ValueError(
+				f"Couldn't detect algorithm for decompression. "
+				f"First 10 bytes: {content[:10]}"
+			)
 
 	decompress = algorithm_map[algorithm][0]()
 	result = decompress(content, **kwargs)
