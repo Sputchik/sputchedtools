@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 39, 1)
-__version__ = '0.39.1'
+__tup_version__ = (0, 40, 0)
+__version__ = '0.40.0'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -2489,6 +2489,266 @@ def decompress_images(data: bytes) -> dict[str, list[int]]:
 		index += INT_SIZE  # Move past separator
 
 	# Fill default extension pages
+	if not repetitive:
+		images[default_ext] = []
+
+	images[default_ext].extend(set(range(1, page_amount + 1)) - added_pages)
+	images[default_ext].sort()
+
+	return images
+
+
+def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None, repetitive: bool = False) -> bytes:
+	def encode_varint(n: int) -> bytes:
+		result = bytearray()
+		while True:
+			byte = n & 0x7F
+			n >>= 7
+			if n:
+				result.append(byte | 0x80)
+			else:
+				result.append(byte)
+				break
+
+		return bytes(result)
+
+	def find_grid_pattern(numbers: list[int], i: int) -> tuple[int, int, int]:
+		"""Looks ahead to find 2D periodic blocks. Returns (block_length, stride, block_count) or None."""
+		n_len = len(numbers)
+
+		# 1. Find the length of the first contiguous block
+		L = 1
+		while i + L < n_len and numbers[i + L] == numbers[i + L - 1] + 1:
+			L += 1
+
+		if L == 1 or i + L >= n_len:
+			return None # Fallback to 1D step/range
+
+		# 2. Determine the stride to the next block
+		stride = numbers[i + L] - numbers[i]
+		if stride <= L:
+			return None # Overlapping blocks, not a grid
+
+		# 3. Count how many perfect blocks we have
+		blocks = 1
+		while i + (blocks + 1) * L <= n_len:
+			expected_start = numbers[i] + blocks * stride
+			match = True
+			for j in range(L):
+				if numbers[i + blocks * L + j] != expected_start + j:
+					match = False
+					break
+			if not match:
+				break
+			blocks += 1
+
+		if blocks > 1:
+			return L, stride, blocks
+		return None
+
+	def encode_numbers_2d(numbers: list[int]) -> bytes:
+		if not numbers:
+			return b''
+
+		data = bytearray()
+		data.extend(encode_varint(numbers[0]))
+		prev_page = numbers[0]
+
+		i = 1
+		n_len = len(numbers)
+		while i < n_len:
+			page = numbers[i]
+			from_prev = page - prev_page
+
+			# Try 2D Grid Pattern First
+			grid = find_grid_pattern(numbers, i)
+			if grid:
+				block_length, stride, block_count = grid
+
+				# Dynamic cost calculation
+				raw_cost = (block_length - 1) * block_count + (block_count - 1) * len(encode_varint(stride - block_length))
+				comp_cost = 2 + len(encode_varint(from_prev)) + len(encode_varint(block_length)) + len(encode_varint(stride)) + len(encode_varint(block_count))
+
+				if comp_cost < raw_cost:
+					data.extend(b'\x00\x03') # 2D Grid Command
+					data.extend(encode_varint(from_prev))
+					data.extend(encode_varint(block_length))
+					data.extend(encode_varint(stride))
+					data.extend(encode_varint(block_count))
+
+					i += block_length * block_count
+					prev_page = numbers[i - 1]
+					continue
+
+			# Fallback to 1D Patterns (Ranges and Steps)
+			if i + 1 < n_len:
+				step = numbers[i + 1] - page
+				length = 1
+
+				while i + length < n_len and numbers[i + length] == page + step * length:
+					length += 1
+
+				step_cost = len(encode_varint(step))
+				raw_cost = (length - 1) * step_cost
+
+				if step == 1:
+					comp_cost = 2 + len(encode_varint(length))
+					if comp_cost < raw_cost:
+						data.extend(b'\x00\x01')
+						data.extend(encode_varint(from_prev))
+						data.extend(encode_varint(length))
+						i += length
+						prev_page = numbers[i - 1]
+						continue
+				else:
+					comp_cost = 2 + step_cost + len(encode_varint(length))
+					if comp_cost < raw_cost:
+						data.extend(b'\x00\x02')
+						data.extend(encode_varint(step))
+						data.extend(encode_varint(from_prev))
+						data.extend(encode_varint(length))
+						i += length
+						prev_page = numbers[i - 1]
+						continue
+
+			# Default: Raw Varint Delta
+			data.extend(encode_varint(from_prev))
+			prev_page = page
+			i += 1
+
+		return bytes(data)
+
+	images = {ext: sorted(list(nums)) for ext, nums in images.items()}
+	default_ext = max(images, key=lambda ext: len(images[ext]))
+	page_amount = page_amount or max((nums[-1] for nums in images.values() if nums), default=0)
+
+	data = bytearray()
+	data.extend(default_ext.encode('utf-8') + b'\x00')
+	data.extend(encode_varint(page_amount))
+
+	if repetitive:
+		default_pages = set(images[default_ext])
+		other_pages = set(p for ext, pages in images.items() if ext != default_ext for p in pages)
+		rep_pages = sorted(list(default_pages.intersection(other_pages)))
+		if rep_pages:
+			data.append(0xFF)
+			data.extend(encode_numbers_2d(rep_pages))
+
+	for ext, num_list in images.items():
+		if ext == default_ext:
+			continue
+		data.append(0x00)
+		data.extend(ext.encode('utf-8') + b'\x00')
+		data.extend(encode_numbers_2d(num_list))
+
+	return bytes(data)
+
+def decompress_images_2d(data: bytes) -> dict[str, list[int]]:
+	index = 0
+	LENGTH = len(data)
+
+	def read_string() -> str:
+		nonlocal index
+		end = data.find(b'\x00', index)
+		string = data[index:end].decode('utf-8')
+		index = end + 1
+		return string
+
+	def read_varint() -> int:
+		nonlocal index
+		result = 0
+		shift = 0
+		while True:
+			byte = data[index]
+			index += 1
+			result |= (byte & 0x7F) << shift
+			if not (byte & 0x80):
+				break
+			shift += 7
+		return result
+
+	def decode_numbers_2d() -> list[int]:
+		nonlocal index
+		numbers = []
+
+		if index < LENGTH and data[index] != 0x00:
+			val = read_varint()
+			numbers.append(val)
+			prev_page = val
+		else:
+			return []
+
+		while index < LENGTH:
+			if data[index] == 0x00:
+				if index + 1 == LENGTH:
+					break
+
+				next_byte = data[index + 1]
+				if next_byte == 0x01:  # 1D Range
+					index += 2
+					from_prev = read_varint()
+					length = read_varint()
+					start = prev_page + from_prev
+					numbers.extend(range(start, start + length))
+					prev_page = numbers[-1]
+
+				elif next_byte == 0x02:  # 1D Step Range
+					index += 2
+					step = read_varint()
+					from_prev = read_varint()
+					length = read_varint()
+					start = prev_page + from_prev
+					numbers.extend(range(start, start + step * length, step))
+					prev_page = numbers[-1]
+
+				elif next_byte == 0x03:  # 2D Grid Block (NEW)
+					index += 2
+					from_prev = read_varint()
+					block_length = read_varint()
+					stride = read_varint()
+					blocks = read_varint()
+
+					start = prev_page + from_prev
+					for b in range(blocks):
+						block_start = start + b * stride
+						numbers.extend(range(block_start, block_start + block_length))
+					prev_page = numbers[-1]
+
+				else:
+					# ASCII letter found. This \x00 is the EXT_SEPARATOR!
+					break
+
+			else:
+				from_prev = read_varint()
+				prev_page += from_prev
+				numbers.append(prev_page)
+
+		return numbers
+
+	default_ext = read_string()
+	page_amount = read_varint()
+
+	repetitive = False
+	if index < LENGTH and data[index] == 0xFF:
+		repetitive = True
+		index += 1
+
+	added_pages = set()
+	images = {}
+
+	if repetitive:
+		rep_pages = decode_numbers_2d()
+		added_pages.update(rep_pages)
+		images[default_ext] = rep_pages
+
+	while index < LENGTH:
+		if data[index] == 0x00:
+			index += 1
+		ext = read_string()
+		nums = decode_numbers_2d()
+		images[ext] = nums
+		added_pages.update(nums)
+
 	if not repetitive:
 		images[default_ext] = []
 
