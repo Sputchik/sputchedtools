@@ -16,8 +16,8 @@ class Falsy(Protocol[T]):
 
 algorithms = ['gzip', 'bzip2', 'lzma2', 'deflate', 'lz4', 'zstd']
 
-__tup_version__ = (0, 40, 0)
-__version__ = '0.40.0'
+__tup_version__ = (0, 40, 1)
+__version__ = '0.40.1'
 
 # ----------------CLASSES-----------------
 class Object:
@@ -2497,7 +2497,6 @@ def decompress_images(data: bytes) -> dict[str, list[int]]:
 
 	return images
 
-
 def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None, repetitive: bool = False) -> bytes:
 	def encode_varint(n: int) -> bytes:
 		result = bytearray()
@@ -2509,27 +2508,23 @@ def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None
 			else:
 				result.append(byte)
 				break
-
 		return bytes(result)
 
 	def find_grid_pattern(numbers: list[int], i: int) -> tuple[int, int, int]:
 		"""Looks ahead to find 2D periodic blocks. Returns (block_length, stride, block_count) or None."""
 		n_len = len(numbers)
 
-		# 1. Find the length of the first contiguous block
 		L = 1
 		while i + L < n_len and numbers[i + L] == numbers[i + L - 1] + 1:
 			L += 1
 
 		if L == 1 or i + L >= n_len:
-			return None # Fallback to 1D step/range
+			return None
 
-		# 2. Determine the stride to the next block
 		stride = numbers[i + L] - numbers[i]
 		if stride <= L:
-			return None # Overlapping blocks, not a grid
+			return None
 
-		# 3. Count how many perfect blocks we have
 		blocks = 1
 		while i + (blocks + 1) * L <= n_len:
 			expected_start = numbers[i] + blocks * stride
@@ -2560,17 +2555,16 @@ def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None
 			page = numbers[i]
 			from_prev = page - prev_page
 
-			# Try 2D Grid Pattern First
+			# 1. Try 2D Grid Pattern First
 			grid = find_grid_pattern(numbers, i)
 			if grid:
 				block_length, stride, block_count = grid
 
-				# Dynamic cost calculation
 				raw_cost = (block_length - 1) * block_count + (block_count - 1) * len(encode_varint(stride - block_length))
 				comp_cost = 2 + len(encode_varint(from_prev)) + len(encode_varint(block_length)) + len(encode_varint(stride)) + len(encode_varint(block_count))
 
 				if comp_cost < raw_cost:
-					data.extend(b'\x00\x03') # 2D Grid Command
+					data.extend(b'\x00\x03')
 					data.extend(encode_varint(from_prev))
 					data.extend(encode_varint(block_length))
 					data.extend(encode_varint(stride))
@@ -2580,7 +2574,7 @@ def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None
 					prev_page = numbers[i - 1]
 					continue
 
-			# Fallback to 1D Patterns (Ranges and Steps)
+			# 2. Fallback to 1D Patterns (Ranges and Steps)
 			if i + 1 < n_len:
 				step = numbers[i + 1] - page
 				length = 1
@@ -2591,27 +2585,62 @@ def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None
 				step_cost = len(encode_varint(step))
 				raw_cost = (length - 1) * step_cost
 
-				if step == 1:
-					comp_cost = 2 + len(encode_varint(length))
-					if comp_cost < raw_cost:
-						data.extend(b'\x00\x01')
-						data.extend(encode_varint(from_prev))
-						data.extend(encode_varint(length))
-						i += length
-						prev_page = numbers[i - 1]
-						continue
-				else:
-					comp_cost = 2 + step_cost + len(encode_varint(length))
-					if comp_cost < raw_cost:
-						data.extend(b'\x00\x02')
-						data.extend(encode_varint(step))
-						data.extend(encode_varint(from_prev))
-						data.extend(encode_varint(length))
-						i += length
-						prev_page = numbers[i - 1]
-						continue
+				if step == 1 and (2 + len(encode_varint(length)) < raw_cost):
+					data.extend(b'\x00\x01')
+					data.extend(encode_varint(from_prev))
+					data.extend(encode_varint(length))
+					i += length
+					prev_page = numbers[i - 1]
+					continue
+				elif step > 1 and (2 + step_cost + len(encode_varint(length)) < raw_cost):
+					data.extend(b'\x00\x02')
+					data.extend(encode_varint(step))
+					data.extend(encode_varint(from_prev))
+					data.extend(encode_varint(length))
+					i += length
+					prev_page = numbers[i - 1]
+					continue
 
-			# Default: Raw Varint Delta
+			# 3. NEW: Try Bitset Block
+			best_j = -1
+			best_savings = 0
+			varint_cost_sum = len(encode_varint(from_prev))
+
+			for j in range(i + 1, n_len):
+				span = numbers[j] - page + 1
+				gap = numbers[j] - numbers[j - 1]
+
+				if gap > 16:
+					break  # If gap is too big, bitset becomes wasteful
+
+				varint_cost_sum += len(encode_varint(gap))
+				bitset_payload_size = (span + 7) // 8
+				bitset_comp_cost = 2 + len(encode_varint(from_prev)) + len(encode_varint(span)) + bitset_payload_size
+
+				savings = varint_cost_sum - bitset_comp_cost
+				if savings > best_savings:
+					best_savings = savings
+					best_j = j
+
+			if best_savings > 0:
+				span = numbers[best_j] - page + 1
+				data.extend(b'\x00\x04')
+				data.extend(encode_varint(from_prev))
+				data.extend(encode_varint(span))
+
+				payload_size = (span + 7) // 8
+				payload = bytearray(payload_size)
+
+				for k in range(i, best_j + 1):
+					bit_idx = numbers[k] - page
+					payload[bit_idx // 8] |= (1 << (bit_idx % 8))
+
+				data.extend(payload)
+				i = best_j + 1
+				prev_page = numbers[best_j]
+				continue
+
+			# 4. Default: Raw Varint Delta
 			data.extend(encode_varint(from_prev))
 			prev_page = page
 			i += 1
@@ -2642,6 +2671,7 @@ def compress_images_2d(images: dict[str, Iterable[int]], page_amount: int = None
 		data.extend(encode_numbers_2d(num_list))
 
 	return bytes(data)
+
 
 def decompress_images_2d(data: bytes) -> dict[str, list[int]]:
 	index = 0
@@ -2701,7 +2731,7 @@ def decompress_images_2d(data: bytes) -> dict[str, list[int]]:
 					numbers.extend(range(start, start + step * length, step))
 					prev_page = numbers[-1]
 
-				elif next_byte == 0x03:  # 2D Grid Block (NEW)
+				elif next_byte == 0x03:  # 2D Grid Block
 					index += 2
 					from_prev = read_varint()
 					block_length = read_varint()
@@ -2714,9 +2744,27 @@ def decompress_images_2d(data: bytes) -> dict[str, list[int]]:
 						numbers.extend(range(block_start, block_start + block_length))
 					prev_page = numbers[-1]
 
+				elif next_byte == 0x04:  # NEW: Bitset Block
+					index += 2
+					from_prev = read_varint()
+					span = read_varint()
+					start = prev_page + from_prev
+					bytes_to_read = (span + 7) // 8
+
+					for b in range(bytes_to_read):
+						byte_val = data[index]
+						index += 1
+						for bit in range(8):
+							bit_idx = b * 8 + bit
+							if bit_idx >= span:
+								break
+							if byte_val & (1 << bit):
+								val = start + bit_idx
+								numbers.append(val)
+								prev_page = val
+
 				else:
-					# ASCII letter found. This \x00 is the EXT_SEPARATOR!
-					break
+					break  # Ext Separator
 
 			else:
 				from_prev = read_varint()
